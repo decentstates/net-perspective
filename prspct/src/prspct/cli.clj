@@ -23,6 +23,7 @@
     [buddy.core.hash :as buddy-hash]
     [buddy.core.codecs :as buddy-codecs]
 
+    [prspct.lib.utils :as utils]
     [prspct.dsl :as dsl]
     [prspct.message-transfer :as message-transfer]
     [prspct.publication :as publication]
@@ -77,8 +78,18 @@
       :coerce :keyword
       :default :warn}
 
+     :print-build-info
+     {:desc "Print build-info.edn instead of running command."
+      :default false
+      :coerce :boolean}
+
      :print-options
      {:desc "Print options set instead of running command."
+      :default false
+      :coerce :boolean}
+
+     :version
+     {:desc "Print version instead of running command."
       :default false
       :coerce :boolean}
 
@@ -156,7 +167,9 @@
               ex-d (ex-data e)]
           (spit exception-write-path
                 (with-out-str
-                  (pprint e)))
+                  (pprint e)
+                  (println)
+                  (pprint (utils/build-info))))
           (binding [*out* *err*]
             (println "Error:" (ex-message e))
             (when-let [category (::anom/category ex-d)]
@@ -185,6 +198,31 @@
         (do
           (tel/spy! :debug log-level)
           (handler ctx))))))
+
+(defn middleware-print-options [handler]
+  (fn [ctx]
+    (if (get-in ctx [:opts :print-options])
+      (do
+        (pprint ctx)
+        (flush))
+      (handler ctx))))
+
+(defn middleware-print-build-info [handler]
+  (fn [ctx]
+    (if (get-in ctx [:opts :print-build-info])
+      (do
+        (pprint (utils/build-info))
+        (flush))
+      (handler ctx))))
+
+(defn middleware-version [handler]
+  (fn [ctx]
+    (if (get-in ctx [:opts :version])
+      (do
+        (println "version:" (:version (utils/build-info)))
+        (println "git-hash:" (:git-hash (utils/build-info)))
+        (flush))
+      (handler ctx))))
 
 (defn print-help [dispatch]
   (let [help
@@ -218,14 +256,6 @@
           (println (cli/format-opts common-cli-spec)))]
     (print help)
     (flush)))
-
-(defn middleware-print-options [handler]
-  (fn [ctx]
-    (if (get-in ctx [:opts :print-options])
-      (do
-        (pprint ctx)
-        (flush))
-      (handler ctx))))
 
 (defn middleware-help [handler]
   (fn [ctx]
@@ -369,6 +399,8 @@
     middleware-exception-handling
     middleware-help
     middleware-print-options
+    middleware-print-build-info
+    middleware-version
     middleware-normalize-paths))
 
 (defn wrap-middlewares   
@@ -460,6 +492,12 @@
                    :default "#**"
                    :required true}}
       :args->opts [:target :context-ref]}
+     {:cmds ["cmd-build-info"]
+      ::desc "Print out the build information of this tool."
+      ::usage "build-info"
+      :fn (wrap-middlewares (fn []
+                              (pprint (utils/build-info)))
+                            [common-middlewares])}
      {:cmds []
       :fn (wrap-middlewares identity
                             [common-middlewares])
@@ -474,4 +512,5 @@
   (tel/with-min-level :debug
     (-main "init" "--print-options"))
 
-  (-main "build" "raw" "#**" "--base-dir" "/home/ds/perspects/ds@underties"))
+  (-main "build" "raw" "#**" "--base-dir" "/home/ds/perspects/ds@underties")
+  (-main "--print-build-info"))

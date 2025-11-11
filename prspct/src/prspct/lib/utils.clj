@@ -7,9 +7,14 @@
     [taoensso.telemere :as tel]
     [taoensso.truss :refer [have have! have!? have? ex-info!]]
 
+    [edamame.core :as edamame]
+
     [babashka.fs :as fs])
   (:import
     [java.time Instant ZoneId]))
+
+(defn build-info []
+  (-> "build-info.edn" io/resource io/file slurp edamame/parse-string))
 
 (defn hostname []
   (-> 

@@ -2,7 +2,9 @@
   (:refer-clojure :exclude [test])
   (:require 
     [clojure.java.shell :as shell]
-    [clojure.tools.build.api :as b]))
+    [clojure.tools.build.api :as b])
+  (:import
+    java.util.Date))
 
 (def lib 'org.net-perspective/prspct)
 (def version "0.1.0-SNAPSHOT")
@@ -21,7 +23,8 @@
 
 (defn- uber-opts [opts]
   (assoc opts
-         :lib lib :main main
+         :lib lib 
+         :main main
          :uber-file (format "target/%s-%s.jar" lib version)
          :native-image-file (format "target/%s-%s" lib version)
          :basis (b/create-basis {})
@@ -42,12 +45,34 @@
     (print (:err ret)))
   opts)
 
+(defn calculate-build-info [opts]
+  (let [ret-normal-dep-tree 
+        (shell/sh "clj" "-Stree")
+        
+        ret-build-dep-tree
+        (shell/sh "clj" "-A:build" "-Stree")]
+    (assert (= 0 (:exit ret-normal-dep-tree)))
+    (assert (= 0 (:exit ret-build-dep-tree)))
+    {:lib lib
+     :opts opts
+     :build-time (java.util.Date.)
+     :normal-dep-tree (:out ret-normal-dep-tree)
+     :build-dep-tree (:out ret-build-dep-tree)
+     :version version
+     :git-hash (b/git-process {:git-args "rev-parse HEAD"})
+     :git-shorthash (b/git-process {:git-args "rev-parse --short HEAD"})}))
+
 (defn ci-light "Run the CI pipeline of tests (and build the uberjar,) minus native-image." [opts]
   (test opts)
   (b/delete {:path "target"})
   (let [opts (uber-opts opts)]
     (println "\nCopying source...")
     (b/copy-dir {:src-dirs ["resources" "src"] :target-dir class-dir})
+    (println "\nCalculating build info...")
+    (let [build-info (calculate-build-info opts)
+          build-info-path (str (:class-dir opts) "/build-info.edn")]
+      (b/write-file {:path build-info-path
+                     :content build-info}))       
     (println (str "\nCompiling " main "..."))
     (b/compile-clj opts)
     (println "\nBuilding JAR...")
