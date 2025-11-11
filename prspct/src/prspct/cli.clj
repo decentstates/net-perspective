@@ -14,6 +14,7 @@
 
     [malli.core :as m]
     [malli.error :as me]
+    [malli.util :as mu]
 
     [edamame.core :as edamame]
 
@@ -238,26 +239,62 @@
         (let [errors 
               (-> ex-d :data :explain :errors)
 
-              has-input-remaining
-              (some #(= (:type %) 
-                      ::m/input-remaining)
-                    errors) 
+              input-remaining? 
+              (fn [error]
+                (= (:type error) 
+                   ::m/input-remaining))
 
-              form-errors
-              (filterv #(list? (:value %)) errors)
+              has-input-remaining
+              (some input-remaining? errors) 
+
+              non-input-remaining-errors
+              (filterv (complement input-remaining?) errors)
 
               error-msgs
               (mapv
-                (fn [form-error]
+                (fn [error]
                   (with-out-str
-                    (let [form (:value form-error)
-                          dsl-fn (first form)
-                          schema-ref (ps/user-config-dsl-fn->schema-ref dsl-fn)]
-                      (println "Validation Error: " user-config-path " : " (meta form))
-                      (if (or (not dsl-fn) (not schema-ref))
-                        (println "Unknown dsl-fn: `" dsl-fn "`")
-                        (pprint (m/explain schema-ref form))))))
-                form-errors)
+                    (let [parent-in
+                          (butlast (:in error))
+
+                          parent-errors
+                          (filterv #(= (:in %) parent-in) errors)
+
+                          some-parent-error
+                          (first parent-errors)
+
+                          pos
+                          (or (meta (:value error))
+                              (meta (:value some-parent-error)))
+
+                          pos-str
+                          (if pos
+                            (str ":" (:row pos) ":" (:col pos) 
+                                 "-" (:end-row pos) ":" (:end-col pos))
+                            "")
+                          
+                          schema
+                          (:schema error)
+
+                          stripped-schema 
+                          (m/walk
+                            schema
+                            (m/schema-walker 
+                              (fn [schema]
+                                (mu/update-properties schema dissoc :gen/fmap :gen/schema :gen/max :gen/min
+                                                      :gen/return :gen/elements :gen/gen :gen/infinite? :gen/NaN?))))]
+                      (println "Validation Error:" (str user-config-path pos-str))
+                      (println)
+                      (println "Value:")
+                      (pprint (:value error))
+                      (println)
+                      (when some-parent-error
+                        (println "In:")
+                        (pprint (:value some-parent-error))
+                        (println))
+                      (println "Schema:")
+                      (pprint stripped-schema))))
+                non-input-remaining-errors)
 
               error-msgs 
               (if has-input-remaining

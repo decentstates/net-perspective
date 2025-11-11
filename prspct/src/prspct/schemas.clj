@@ -731,17 +731,12 @@
         [:= 'ctx]
         #'UserConfigDSLContextPart
         #'UserContextConfig
-        [:* [:alt
-             [:schema [:ref ::context-dsl]]
-             [:schema [:ref ::relation-dsl]]]]]]}}
+        [:* [:multi {:dispatch first}
+             ['-> [:ref ::relation-dsl]]
+             ['->> [:ref ::relation-dsl]]
+             ['ctx [:ref ::context-dsl]]]]]]}}
    [:ref ::context-dsl]])
 
-
-(def user-config-dsl-fn->schema-ref
-  {'->  #'UserConfigDSLRelationEntry
-   '->> #'UserConfigDSLRelationEntry
-   'ctx #'UserConfigDSLContextEntry})
-    
 (def UserConfigDSL
   [:cat 
    [:* [:alt #'UserConfigDSLContextEntry]]])
