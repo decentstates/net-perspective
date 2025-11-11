@@ -1,0 +1,2 @@
+default:
+	clj -X:test
