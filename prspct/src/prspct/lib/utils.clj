@@ -22,7 +22,7 @@
       (apply str (map #(format "%02x" (bit-and % 0xff)) digest)))))
 
 (defn build-info []
-  (-> "build-info.edn" io/resource io/file slurp edamame/parse-string))
+  (-> "build-info.edn" io/resource slurp edamame/parse-string))
 
 (defn hostname []
   (-> 

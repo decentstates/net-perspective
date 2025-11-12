@@ -492,12 +492,6 @@
                    :default "#**"
                    :required true}}
       :args->opts [:target :context-ref]}
-     {:cmds ["cmd-build-info"]
-      ::desc "Print out the build information of this tool."
-      ::usage "build-info"
-      :fn (wrap-middlewares (fn []
-                              (pprint (utils/build-info)))
-                            [common-middlewares])}
      {:cmds []
       :fn (wrap-middlewares identity
                             [common-middlewares])

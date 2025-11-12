@@ -40,27 +40,20 @@
                       "--features=clj_easy.graal_build_time.InitClojureClasses"
                       "--initialize-at-build-time=org.slf4j.helpers.NOPLoggerFactory"
                       "--initialize-at-build-time=java.time.Instant"
-                      "-classpath" (java.lang.System/getProperty "java.class.path"))]
+                      "-classpath" (java.lang.System/getProperty "java.class.path")
+                      "-H:IncludeResources=.*build-info.edn")]
     (print (:out ret))
     (print (:err ret)))
   opts)
 
 (defn calculate-build-info [opts]
-  (let [ret-normal-dep-tree 
-        (shell/sh "clj" "-Stree")
-        
-        ret-build-dep-tree
-        (shell/sh "clj" "-A:build" "-Stree")]
-    (assert (= 0 (:exit ret-normal-dep-tree)))
-    (assert (= 0 (:exit ret-build-dep-tree)))
-    {:lib lib
-     :opts opts
-     :build-time (java.util.Date.)
-     :normal-dep-tree (:out ret-normal-dep-tree)
-     :build-dep-tree (:out ret-build-dep-tree)
-     :version version
-     :git-hash (b/git-process {:git-args "rev-parse HEAD"})
-     :git-shorthash (b/git-process {:git-args "rev-parse --short HEAD"})}))
+  {:lib lib
+   :opts opts
+   :version version
+   ;; NOTE: These will fail in remote nix builds, wontfix.
+   :git-hash (b/git-process {:git-args "rev-parse HEAD"})
+   :git-shorthash (b/git-process {:git-args "rev-parse --short HEAD"})
+   :git-status (b/git-process {:git-args "status --porcelain"})})
 
 (defn ci-light "Run the CI pipeline of tests (and build the uberjar,) minus native-image." [opts]
   (test opts)
