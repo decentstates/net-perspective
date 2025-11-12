@@ -28,16 +28,16 @@
   (testing "basics"
     (fs/with-temp-dir [base-dir {}]
       (sut/-main "init" "--base-dir" base-dir)
-      (is (= (vec (map str (file-seq (fs/file base-dir))))
-             [(str base-dir "")
-              (str base-dir "/prspct.edn")
-              (str base-dir "/.prspct")
-              (str base-dir "/.prspct/fetches")
-              (str base-dir "/.prspct/fetches/0")
-              (str base-dir "/.prspct/fetches/0/fetch-info.edn")
-              (str base-dir "/.prspct/.gitignore")
-              (str base-dir "/.prspct/fetches.HEAD")
-              (str base-dir "/.prspct/fetches.HEAD/fetch-info.edn")])))))
+      (is (= (sort (vec (map str (file-seq (fs/file base-dir)))))
+             (sort [(str base-dir "")
+                    (str base-dir "/prspct.edn")
+                    (str base-dir "/.prspct")
+                    (str base-dir "/.prspct/fetches")
+                    (str base-dir "/.prspct/fetches/0")
+                    (str base-dir "/.prspct/fetches/0/fetch-info.edn")
+                    (str base-dir "/.prspct/.gitignore")
+                    (str base-dir "/.prspct/fetches.HEAD")
+                    (str base-dir "/.prspct/fetches.HEAD/fetch-info.edn")]))))))
 
 (defn write-edn [f edn]
   (spit f (with-out-str 
