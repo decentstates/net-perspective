@@ -11,7 +11,15 @@
 
     [babashka.fs :as fs])
   (:import
-    [java.time Instant ZoneId]))
+    [java.time Instant ZoneId]
+    [java.security MessageDigest]))
+
+(defn sha256 [s]
+  (have! string? s)
+  (let [hash (MessageDigest/getInstance "SHA-256")]
+    (. hash update (.getBytes s))
+    (let [digest (.digest hash)]
+      (apply str (map #(format "%02x" (bit-and % 0xff)) digest)))))
 
 (defn build-info []
   (-> "build-info.edn" io/resource io/file slurp edamame/parse-string))

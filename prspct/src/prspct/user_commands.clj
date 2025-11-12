@@ -14,8 +14,6 @@
 
     [babashka.cli :as cli]
     [babashka.fs :as fs]
-    [buddy.core.hash :as buddy-hash]
-    [buddy.core.codecs :as buddy-codecs]
 
     [prspct.dsl :as dsl]
     [prspct.message-transfer :as message-transfer]

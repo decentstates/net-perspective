@@ -20,8 +20,6 @@
 
     [babashka.cli :as cli]
     [babashka.fs :as fs]
-    [buddy.core.hash :as buddy-hash]
-    [buddy.core.codecs :as buddy-codecs]
 
     [prspct.lib.utils :as utils]
     [prspct.dsl :as dsl]

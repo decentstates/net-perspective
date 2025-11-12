@@ -13,9 +13,7 @@
 
    [babashka.fs :as fs]
 
-   [buddy.core.hash :as buddy-hash]
-   [buddy.core.codecs :as buddy-codecs]
-
+   [prspct.lib.utils :as utils]
    [prspct.schemas :as ps]]
   [:import
    [java.time Instant]])
@@ -209,8 +207,7 @@
 (defn write-edn-message! [message-schema message output-dir]
   (let [eml (ps/edn-message->eml message-schema message)
         ;; TODO: Maybe can hash only some of the fields instead of all of them.
-        eml-hash   (-> (buddy-hash/sha256 eml)
-                       (buddy-codecs/bytes->hex))
+        eml-hash   (utils/sha256 eml)
         filename (str eml-hash ".eml")
         write-path (str output-dir "/" filename)]
       (spit write-path eml)
