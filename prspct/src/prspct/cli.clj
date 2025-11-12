@@ -178,7 +178,9 @@
               (print instructions))
             (println)
             (println "Full report at:")
-            (println exception-write-path))
+            (println exception-write-path)
+            (println)
+            (println "Bugs: mailto:~decentstates/net-perspective-alpha@lists.sr.ht"))
           :error-exit)))))
 
 (defn middleware-eventer [handler]
