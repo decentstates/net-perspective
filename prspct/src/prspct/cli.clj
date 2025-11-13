@@ -197,9 +197,7 @@
         log-level
         (do
           (tel/spy! :debug log-level)
-          (let [ret (handler ctx)]
-            (flush)
-            ret))))))
+          (handler ctx))))))
 
 (defn middleware-print-options [handler]
   (fn [ctx]
@@ -500,11 +498,12 @@
 
 (defn -main [& args]
   (tel/event! ::-main :trace)
-  (cli/dispatch dispatch-table args))
+  (cli/dispatch dispatch-table args)
+  (flush))
 
 (comment
   (tel/with-min-level :debug
     (-main "init" "--print-options"))
 
-  (-main "build" "edn" "#**" "--base-dir" "/home/ds/perspects/ds@underties")
+  (-main "build" "edn" "#underties" "--base-dir" "/home/ds/perspects/ds@underties")
   (-main "--print-build-info"))

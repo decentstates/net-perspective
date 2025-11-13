@@ -86,7 +86,7 @@
                 :let [contact-name (last matching-context)
                       context-rels (get resolved-contexts matching-context)
                       context-ids (mapv first context-rels)]]
-            [(keyword under-namespace contact-name) context-ids]))
+            [(keyword (name under-namespace) contact-name) context-ids]))
         
         contact-rels
         (mapcat
