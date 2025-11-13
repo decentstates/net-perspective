@@ -340,7 +340,7 @@
 (def IdentifierSSHKey
   [:schema
    {:gen/schema [:int {:min 0 :max 10}]
-    :gen/fmap (fn [i] (str "ssh-key:ssh-rsa ssh-ed25519 AAAAC3NzaC1lZDI1NTE5+invalid-key+=" i))}
+    :gen/fmap (fn [i] (str "ssh-key:ssh-ed25519 AAAAC3NzaC1lZDI1NTE5+invalid+key+" i "+="))}
    [:or
     [:re #"^ssh-key:ssh-dss AAAAB3NzaC1kc3[0-9A-Za-z+/]+[=]{0,3}$"]
     [:re #"^ssh-key:ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNT[0-9A-Za-z+/]+[=]{0,3}$"]
