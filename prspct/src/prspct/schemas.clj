@@ -338,10 +338,24 @@
   (str/replace-first ident #"^email:" ""))
 
 (def IdentifierSSHKey
-  [:re 
+  [:schema
    {:gen/schema [:int {:min 0 :max 10}]
-    :gen/fmap (fn [i] (str "ssh-key:ssh-rsa invalid-key-" i))}
-   #"^ssh-key:.+$"])
+    :gen/fmap (fn [i] (str "ssh-key:ssh-rsa ssh-ed25519 AAAAC3NzaC1lZDI1NTE5+invalid-key+=" i))}
+   [:or
+    [:re #"^ssh-key:ssh-dss AAAAB3NzaC1kc3[0-9A-Za-z+/]+[=]{0,3}$"]
+    [:re #"^ssh-key:ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNT[0-9A-Za-z+/]+[=]{0,3}$"]
+    [:re #"^ssh-key:ecdsa-sha2-nistp384 AAAAE2VjZHNhLXNoYTItbmlzdHAzOD[0-9A-Za-z+/]+[=]{0,3}$"]
+    [:re #"^ssh-key:ecdsa-sha2-nistp521 AAAAE2VjZHNhLXNoYTItbmlzdHA1Mj[0-9A-Za-z+/]+[=]{0,3}$"]
+    [:re #"^ssh-key:sk-ecdsa-sha2-nistp256@openssh.com AAAAInNrLWVjZHNhLXNoYTItbmlzdHAyNTZAb3BlbnNzaC5jb2[0-9A-Za-z+/]+[=]{0,3}$"]
+    [:re #"^ssh-key:ssh-ed25519 AAAAC3NzaC1lZDI1NTE5[0-9A-Za-z+/]+[=]{0,3}$"]
+    [:re #"^ssh-key:sk-ssh-ed25519@openssh.com AAAAGnNrLXNzaC1lZDI1NTE5QG9wZW5zc2guY29t[0-9A-Za-z+/]+[=]{0,3}$"]
+    [:re #"^ssh-key:ssh-rsa AAAAB3NzaC1yc2[0-9A-Za-z+/]+[=]{0,3}$"]]])
+
+(defn ssh-public-key->identifier-ssh [s]
+  (m/coerce #'IdentifierSSHKey
+    (str "ssh-key:"
+         ;; We have to strip the comment off the ssh key
+         (re-find #"[a-z0-9\.@\-]+ [0-9A-Za-z+/]+[=]{0,3}" s))))
 
 (defn identifier-ssh-key? [ident]
   (and (string? ident)
@@ -372,11 +386,8 @@
                (string? ident)
                (first (str/split ident #":" 2))
 
-               (keyword? ident)
-               :keyword
-               
                :else
-               :other))}
+               :unknown))}
     ["email"   #'IdentifierEmail]
     ["ssh-key" #'IdentifierSSHKey]
     ["uri"     #'IdentifierURI]])
