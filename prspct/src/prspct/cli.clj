@@ -498,12 +498,14 @@
 
 (defn -main [& args]
   (tel/event! ::-main :trace)
-  (cli/dispatch dispatch-table args)
-  (flush))
+  (let [ret (cli/dispatch dispatch-table args)]
+    (flush)
+    ret))
 
 (comment
   (tel/with-min-level :debug
     (-main "init" "--print-options"))
+  *e
 
-  (-main "build" "edn" "#underties" "--base-dir" "/home/ds/perspects/ds@underties")
+  (-main "build" "flat-ssh-keys" "#underties" "--base-dir" "/home/ds/perspects/ds@underties")
   (-main "--print-build-info"))
