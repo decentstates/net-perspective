@@ -113,7 +113,7 @@
         (sut/-main "fetch" "--base-dir" b-base-dir)
         (sut/-main "fetch" "--base-dir" c-base-dir)
         (with-out-str
-          (is (= (sut/-main "build" "raw" "#**" "--base-dir" a-base-dir)
+          (is (= (sut/-main "build" "edn" "#**" "--base-dir" a-base-dir)
                  {["net-perspective"]
                   #{["email:admin@net-perspective.org" ["net-perspective" "*"]]
                     ["uri:net-perspective.org" ["net-perspective" "*"]]}
@@ -123,13 +123,13 @@
 
                   ["net-perspective" "announcements"]
                   #{["uri:feed:https://net-perspective.org/feed.atom" ["net-perspective" "announcements"]]}}))
-          (is (= (sut/-main "build" "raw" "#**" "--base-dir" b-base-dir)
+          (is (= (sut/-main "build" "edn" "#**" "--base-dir" b-base-dir)
                  {["net-perspective" "*"]
                   #{["email:alice@example.com" ["net-perspective" "*"]]}
 
                   ["net-perspective" "announcements"]
                   #{["email:alice@example.com" ["net-perspective" "announcements"]]}}))
-          (is (= (sut/-main "build" "raw" "#**" "--base-dir" c-base-dir)
+          (is (= (sut/-main "build" "edn" "#**" "--base-dir" c-base-dir)
                  {["net-perspective" "*"] 
                   #{["email:admin@net-perspective.org" ["net-perspective" "*"]]
                     ["email:alice@example.com" ["net-perspective" "*"]]}

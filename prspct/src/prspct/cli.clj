@@ -480,17 +480,17 @@
                             [common-middlewares
                              middleware-resolve-config])
       ::cmd-spec {:target
-                  {:desc "raw, flat-ssh-keys, flat-emails, flat-uris"
+                  {:desc "edn, flat-ssh-keys, flat-emails, flat-uris"
                    :coerce :keyword
-                   :default "raw"
-                   :required true}
+                   :default :edn
+                   :required false}
       
                   ;; TODO: Rename this var...
                   :context-ref
                   {:desc "The context to use to build"
                    :coerce :string
                    :default "#**"
-                   :required true}}
+                   :required false}}
       :args->opts [:target :context-ref]}
      {:cmds []
       :fn (wrap-middlewares identity
@@ -506,5 +506,5 @@
   (tel/with-min-level :debug
     (-main "init" "--print-options"))
 
-  (-main "build" "raw" "#**" "--base-dir" "/home/ds/perspects/ds@underties")
+  (-main "build" "edn" "#**" "--base-dir" "/home/ds/perspects/ds@underties")
   (-main "--print-build-info"))

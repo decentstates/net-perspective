@@ -109,7 +109,7 @@
 
 (defmulti build! (fn [target context-ref resolved-config] target))
 
-(defmethod build! :raw
+(defmethod build! :edn
   [_ context-ref resolved-config]
   (let [resolved-contexts (:resolved-contexts resolved-config)
         parsed-context (ps/context->internal-context context-ref)
@@ -121,7 +121,7 @@
 (defmethod build! :flat-ssh-keys
   [_ context-ref resolved-config]
   (let [matching-resolved-contexts
-        (build! :raw context-ref resolved-config)
+        (build! :edn context-ref resolved-config)
 
         idents
         (into #{}
@@ -142,7 +142,7 @@
 (defmethod build! :flat-emails
   [_ context-ref resolved-config]
   (let [matching-resolved-contexts
-        (build! :raw context-ref resolved-config)
+        (build! :edn context-ref resolved-config)
 
         idents
         (into #{}
@@ -163,7 +163,7 @@
 (defmethod build! :flat-uris
   [_ context-ref resolved-config]
   (let [matching-resolved-contexts
-        (build! :raw context-ref resolved-config)
+        (build! :edn context-ref resolved-config)
 
         idents
         (into #{}
