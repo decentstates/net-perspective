@@ -197,7 +197,9 @@
         log-level
         (do
           (tel/spy! :debug log-level)
-          (handler ctx))))))
+          (let [ret (handler ctx)]
+            (flush)
+            ret))))))
 
 (defn middleware-print-options [handler]
   (fn [ctx]
