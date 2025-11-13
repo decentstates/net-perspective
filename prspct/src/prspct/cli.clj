@@ -350,7 +350,7 @@
 
         user-config-edn 
         (try*
-          (edamame/parse-string user-config-text)
+          (edamame/parse-string-all user-config-text)
           (catch :ex-info e
             (let [ex-d (ex-data e)]
               (if (= (:type ex-d)
@@ -431,10 +431,7 @@
     (spit (str (fs/path (:prspct-dir opts) ".gitignore"))
           "*")
 
-    (spit (:user-config-path opts)
-          (with-out-str 
-            (binding [clojure.pprint/*print-right-margin* 120] 
-              (pprint edn))))
+    (dsl/write-config (:user-config-path opts) edn)
 
     (let [fetch-0 (fs/path (:fetches-dir opts) "0")]
       (fs/create-dirs fetch-0)

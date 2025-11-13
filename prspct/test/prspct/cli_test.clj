@@ -39,11 +39,6 @@
                     (str base-dir "/.prspct/fetches.HEAD")
                     (str base-dir "/.prspct/fetches.HEAD/fetch-info.edn")]))))))
 
-(defn write-edn [f edn]
-  (spit f (with-out-str 
-             (binding [clojure.pprint/*print-right-margin* 120] 
-               (pprint edn)))))
-
 (deftest integration-test
   (testing "basic roundtrip"
     (with-temp-dir [a-base-dir {}
@@ -111,9 +106,9 @@
 
                       (dsl/ctx "net-perspective.*" {}
                                (dsl/->> "email:alice@example.com" "#net-perspective.*" :public)))]]
-        (write-edn (str a-base-dir "/prspct.edn") a-prspct-edn)
-        (write-edn (str b-base-dir "/prspct.edn") b-prspct-edn)
-        (write-edn (str c-base-dir "/prspct.edn") c-prspct-edn)
+        (dsl/write-config (str a-base-dir "/prspct.edn") a-prspct-edn)
+        (dsl/write-config (str b-base-dir "/prspct.edn") b-prspct-edn)
+        (dsl/write-config (str c-base-dir "/prspct.edn") c-prspct-edn)
         (sut/-main "publish" "--base-dir" a-base-dir)
         (sut/-main "fetch" "--base-dir" b-base-dir)
         (sut/-main "fetch" "--base-dir" c-base-dir)
@@ -174,7 +169,7 @@
                                (dsl/->> "uri:feed:https://net-perspective.org/feed.atom" "#net-perspective.announcements" :public))
                       (dsl/ctx "net-perspective.*" {}
                                (dsl/->> "email:admin@net-perspective.org" "#net-perspective.*" :public)))]]
-        (write-edn (str a-base-dir "/prspct.edn") a-prspct-edn)
+        (dsl/write-config (str a-base-dir "/prspct.edn") a-prspct-edn)
         (let [out-map
               (prspct.test-utils/with-out-data-map
                 (sut/-main "fetch" "--base-dir" a-base-dir))]

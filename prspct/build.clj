@@ -74,7 +74,7 @@
 
 (defn ci "Run the CI pipeline of tests (and build the uberjar)." [opts]
   (let [opts (ci-light opts)]
-    (println "\nCompiling native-image... (This will take a few minutes...)")
+    (println "\nCompiling native-image... (This will take a moment...)")
     (native-image opts)
     ;; TODO: Perform integration tests with the final executable
     opts))
