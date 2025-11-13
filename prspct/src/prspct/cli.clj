@@ -341,6 +341,7 @@
         ;; else
         (throw e))))
 
+
 (defn load-user-config [user-config-path]
   (let [user-config-text 
         (slurp user-config-path)
@@ -480,7 +481,7 @@
                             [common-middlewares
                              middleware-resolve-config])
       ::cmd-spec {:target
-                  {:desc "raw, links, map"
+                  {:desc "raw, flat-ssh-keys, flat-emails, flat-uris"
                    :coerce :keyword
                    :default "raw"
                    :required true}

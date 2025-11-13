@@ -116,21 +116,68 @@
         matching-contexts (filterv #(resolution/ctx-match? parsed-context %) (keys resolved-contexts))
         matching-resolved-contexts (select-keys resolved-contexts matching-contexts)
         serialize-fn (fn [x] (with-out-str (pprint x)))]
-    (with-meta matching-resolved-contexts {:serialize-fn (fn [x] (with-out-str (pprint x)))})))
+    (with-meta matching-resolved-contexts {:serialize-fn serialize-fn})))
 
-(defmethod build! :links
+(defmethod build! :flat-ssh-keys
   [_ context-ref resolved-config]
-  (let [matching-resolved-contexts (build! :raw context-ref resolved-config)]
-    (mapv (fn [context] []) (keys matching-resolved-contexts))
-    (vec (doseq [[context ident] matching-resolved-contexts]))))
-  ;; Parse context-ref
-  ;; filter resolved-config for context-ref
-  ;; filter resolved-config for urls
-  ;; build tree structure I guess, not really necessary here
-  ;; return serialization metadata
+  (let [matching-resolved-contexts
+        (build! :raw context-ref resolved-config)
 
-; (defmethod build!)
-        
+        idents
+        (into #{}
+              (comp
+                (map (fn [[_context idents]] idents))
+                cat
+                (filter ps/identifier-ssh-key?)
+                (filter ps/identifier-ssh-key->ssh-key))
+              matching-resolved-contexts)
+
+        serialize-fn
+        (fn [idents] (with-out-str 
+                       (doseq [ident idents]
+                         (println ident))))]
+    (with-meta idents {:serialize-fn serialize-fn})))
+
+(defmethod build! :flat-emails
+  [_ context-ref resolved-config]
+  (let [matching-resolved-contexts
+        (build! :raw context-ref resolved-config)
+
+        idents
+        (into #{}
+              (comp
+                (map (fn [[_context idents]] idents))
+                cat
+                (filter ps/identifier-email?)
+                (filter ps/identifier-email->email))
+              matching-resolved-contexts)
+
+        serialize-fn
+        (fn [idents] (with-out-str 
+                       (doseq [ident idents]
+                         (println ident))))]
+    (with-meta idents {:serialize-fn serialize-fn})))
+
+(defmethod build! :flat-uris
+  [_ context-ref resolved-config]
+  (let [matching-resolved-contexts
+        (build! :raw context-ref resolved-config)
+
+        idents
+        (into #{}
+              (comp
+                (map (fn [[_context idents]] idents))
+                cat
+                (filter ps/identifier-uri?)
+                (filter ps/identifier-uri->uri))
+              matching-resolved-contexts)
+
+        serialize-fn
+        (fn [idents] (with-out-str 
+                       (doseq [ident idents]
+                         (println ident))))]
+    (with-meta idents {:serialize-fn serialize-fn})))
+
 (comment
   (fs/with-temp-dir [publish-dir {}]
     (fs/with-temp-dir [base-dir {}]
