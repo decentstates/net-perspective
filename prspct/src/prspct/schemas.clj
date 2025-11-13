@@ -329,11 +329,27 @@
     :gen/fmap (fn [i] (str "email:u-" (format "%04d" i) "@example.com"))}
    #"^email:.*@.*$"])
 
+(defn identifier-email? [ident]
+  (and (string? ident)
+       (str/starts-with? ident "email:")))
+
+(defn identifier-email->email [ident]
+  (have! identifier-email? ident)
+  (str/replace-first ident #"^email:" ""))
+
 (def IdentifierSSHKey
   [:re 
    {:gen/schema [:int {:min 0 :max 10}]
     :gen/fmap (fn [i] (str "ssh-key:ssh-rsa invalid-key-" i))}
    #"^ssh-key:.+$"])
+
+(defn identifier-ssh-key? [ident]
+  (and (string? ident)
+       (str/starts-with? ident "ssh-key:")))
+
+(defn identifier-ssh-key->ssh-key [ident]
+  (have! identifier-ssh-key? ident)
+  (str/replace-first ident #"^ssh-key:" ""))
 
 (def IdentifierURI
   [:re 
@@ -341,19 +357,34 @@
     :gen/fmap (fn [i] (str "uri:http://example.com/" i))}
    #"^uri:.+$"])
 
+(defn identifier-uri? [ident]
+  (and (string? ident)
+       (str/starts-with? ident "uri:")))
+
+(defn identifier-uri->uri [ident]
+  (have! identifier-uri? ident)
+  (str/replace-first ident #"^uri:" ""))
+
 (def Identifier
-  [:or
-   #'IdentifierEmail
-   #'IdentifierSSHKey
-   #'IdentifierURI])
+  [:multi {:dispatch 
+           (fn [ident] 
+             (cond
+               (string? ident)
+               (first (str/split ident #":" 2))
 
-; (mg/generate Identifier)
-
-;; NOTE: Fewer example-contexts means in generation we will have higher levels of connection
+               (keyword? ident)
+               :keyword
+               
+               :else
+               :other))}
+    ["email"   #'IdentifierEmail]
+    ["ssh-key" #'IdentifierSSHKey]
+    ["uri"     #'IdentifierURI]])
 
 
 ;; ### Contexts:
 
+;; NOTE: Fewer example-contexts means in generation we will have higher levels of connection
 (def example-contexts 
   ["#comp.ai"
    "#comp.ai.bayesian"
