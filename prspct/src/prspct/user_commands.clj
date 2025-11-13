@@ -126,10 +126,11 @@
         idents
         (into #{}
               (comp
-                (map (fn [[_context idents]] idents))
+                (map (fn [[_context pairs]] pairs))
                 cat
+                (map (fn [[ident _context]] ident))
                 (filter ps/identifier-ssh-key?)
-                (filter ps/identifier-ssh-key->ssh-key))
+                (map ps/identifier-ssh-key->ssh-key))
               matching-resolved-contexts)
 
         serialize-fn
@@ -146,10 +147,11 @@
         idents
         (into #{}
               (comp
-                (map (fn [[_context idents]] idents))
+                (map (fn [[_context pairs]] pairs))
                 cat
+                (map (fn [[ident _context]] ident))
                 (filter ps/identifier-email?)
-                (filter ps/identifier-email->email))
+                (map ps/identifier-email->email))
               matching-resolved-contexts)
 
         serialize-fn
@@ -166,10 +168,11 @@
         idents
         (into #{}
               (comp
-                (map (fn [[_context idents]] idents))
+                (map (fn [[_context pairs]] pairs))
                 cat
+                (map (fn [[ident _context]] ident))
                 (filter ps/identifier-uri?)
-                (filter ps/identifier-uri->uri))
+                (map ps/identifier-uri->uri))
               matching-resolved-contexts)
 
         serialize-fn
