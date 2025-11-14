@@ -111,72 +111,77 @@
 
 (defmethod build! :edn
   [_ context-ref resolved-config]
-  (let [resolved-contexts (:resolved-contexts resolved-config)
-        parsed-context (ps/context->internal-context context-ref)
-        matching-contexts (filterv #(resolution/ctx-match? parsed-context %) (keys resolved-contexts))
-        matching-resolved-contexts (select-keys resolved-contexts matching-contexts)
-        serialize-fn (fn [x] (with-out-str (pprint x)))]
+  (let [resolved-contexts 
+        (:resolved-contexts resolved-config)
+
+        parsed-context
+        (ps/context->internal-context context-ref)
+
+        matching-contexts 
+        (filterv #(resolution/ctx-match? parsed-context %) 
+                 (keys resolved-contexts))
+
+        matching-resolved-contexts 
+        (select-keys resolved-contexts matching-contexts)
+
+        serialize-fn
+        (fn [x] (with-out-str (pprint x)))]
     (with-meta matching-resolved-contexts {:serialize-fn serialize-fn})))
+
+(defn- build-flat [context-ref resolved-config filter-f]
+  (let [matching-resolved-contexts
+        (build! :edn context-ref resolved-config)
+
+        idents
+        (into #{}
+              (comp
+                (map (fn [[_context pairs]] pairs))
+                cat
+                (map (fn [[ident _context]] ident))
+                (filter filter-f)
+                (map ps/identifier-value))
+              matching-resolved-contexts)
+
+        serialize-fn
+        (fn [idents] (with-out-str 
+                       (doseq [ident idents]
+                         (println ident))))]
+    (with-meta idents {:serialize-fn serialize-fn})))
 
 (defmethod build! :flat-ssh-keys
   [_ context-ref resolved-config]
-  (let [matching-resolved-contexts
-        (build! :edn context-ref resolved-config)
-
-        idents
-        (into #{}
-              (comp
-                (map (fn [[_context pairs]] pairs))
-                cat
-                (map (fn [[ident _context]] ident))
-                (filter ps/identifier-ssh-key?)
-                (map ps/identifier-ssh-key->ssh-key))
-              matching-resolved-contexts)
-
-        serialize-fn
-        (fn [idents] (with-out-str 
-                       (doseq [ident idents]
-                         (println ident))))]
-    (with-meta idents {:serialize-fn serialize-fn})))
+  (build-flat context-ref resolved-config ps/identifier-ssh-key?))
 
 (defmethod build! :flat-emails
   [_ context-ref resolved-config]
-  (let [matching-resolved-contexts
-        (build! :edn context-ref resolved-config)
-
-        idents
-        (into #{}
-              (comp
-                (map (fn [[_context pairs]] pairs))
-                cat
-                (map (fn [[ident _context]] ident))
-                (filter ps/identifier-email?)
-                (map ps/identifier-email->email))
-              matching-resolved-contexts)
-
-        serialize-fn
-        (fn [idents] (with-out-str 
-                       (doseq [ident idents]
-                         (println ident))))]
-    (with-meta idents {:serialize-fn serialize-fn})))
+  (build-flat context-ref resolved-config ps/identifier-email?))
 
 (defmethod build! :flat-uris
+  [_ context-ref resolved-config]
+  (build-flat context-ref resolved-config ps/identifier-uri?))
+
+(defmethod build! :tsv
   [_ context-ref resolved-config]
   (let [matching-resolved-contexts
         (build! :edn context-ref resolved-config)
 
-        idents
-        (into #{}
+        lines
+        (into [] 
               (comp
-                (map (fn [[_context pairs]] pairs))
-                cat
-                (map (fn [[ident _context]] ident))
-                (filter ps/identifier-uri?)
-                (map ps/identifier-uri->uri))
+                (map 
+                  (fn [[sub-context member-pairs]]
+                    (mapv
+                      (fn [[obj-identifier obj-context]]
+                        [(ps/internal-context->context sub-context)
+                         (ps/internal-context->context obj-context)
+                         (ps/identifier-dispatch obj-identifier)
+                         (ps/identifier-value obj-identifier)])
+                      member-pairs)))
+                cat)
               matching-resolved-contexts)
 
         serialize-fn
-        (fn [idents] (with-out-str 
-                       (doseq [ident idents]
-                         (println ident))))]
-    (with-meta idents {:serialize-fn serialize-fn})))
+        (fn [lines] (with-out-str 
+                      (doseq [line lines]
+                        (apply println line))))]
+    (with-meta lines {:serialize-fn serialize-fn})))

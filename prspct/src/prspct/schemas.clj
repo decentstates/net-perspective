@@ -379,15 +379,25 @@
   (have! identifier-uri? ident)
   (str/replace-first ident #"^uri:" ""))
 
-(def Identifier
-  [:multi {:dispatch 
-           (fn [ident] 
-             (cond
-               (string? ident)
-               (first (str/split ident #":" 2))
 
-               :else
-               :unknown))}
+(defn identifier-dispatch [ident]
+  (cond
+    (string? ident)
+    (first (str/split ident #":" 2))
+
+    :else
+    :unknown))
+
+(defn identifier-value [ident]
+  (cond
+    (string? ident)
+    (second (str/split ident #":" 2))
+
+    :else
+    :unknown))
+
+(def Identifier
+  [:multi {:dispatch identifier-dispatch}
     ["email"   #'IdentifierEmail]
     ["ssh-key" #'IdentifierSSHKey]
     ["uri"     #'IdentifierURI]])
