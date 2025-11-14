@@ -751,7 +751,8 @@
               (->  "email:as@sdfasdfdf" "#nixos" :public)
               (->  "uri:http://asdf.com" "#null" :public)))])
 
-(def UserConfigDSLContextPart :string)
+(def UserConfigDSLContextPart 
+  [:re #"^#?(?:[a-z][a-z0-9\-]*\.?)*\*?\*?$"])
 
 (def UserConfigDSLRelationEntry
   [:schema
@@ -769,14 +770,25 @@
 
      ::context-dsl 
      [:schema
-       [:cat 
-        [:= 'ctx]
-        #'UserConfigDSLContextPart
-        #'UserContextConfig
-        [:* [:multi {:dispatch first}
-             ['-> [:ref ::relation-dsl]]
-             ['->> [:ref ::relation-dsl]]
-             ['ctx [:ref ::context-dsl]]]]]]}}
+       ;; NOTE: Using a multi gives much better error messages
+       [:multi {:dispatch (fn [x] (map? (nth x 2 nil)))}
+        [true
+         [:cat 
+          [:= 'ctx]
+          #'UserConfigDSLContextPart
+          #'UserContextConfig
+          [:* [:multi {:dispatch first}
+               ['-> [:ref ::relation-dsl]]
+               ['->> [:ref ::relation-dsl]]
+               ['ctx [:ref ::context-dsl]]]]]]
+        [false
+         [:cat 
+          [:= 'ctx]
+          #'UserConfigDSLContextPart
+          [:* [:multi {:dispatch first}
+               ['-> [:ref ::relation-dsl]]
+               ['->> [:ref ::relation-dsl]]
+               ['ctx [:ref ::context-dsl]]]]]]]]}}
    [:ref ::context-dsl]])
 
 (def UserConfigDSL

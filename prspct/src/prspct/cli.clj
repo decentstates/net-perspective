@@ -322,8 +322,10 @@
                         (println "In:")
                         (pprint (:value some-parent-error))
                         (println))
-                      (println "Schema:")
-                      (pprint stripped-schema))))
+                      (println "Malli Schema:")
+                      (pprint (m/form stripped-schema))
+                      (println)
+                      (println "For more info see: https://github.com/metosin/malli?tab=readme-ov-file#malli"))))
                 non-input-remaining-errors)
 
               error-msgs 
@@ -478,17 +480,22 @@
                             [common-middlewares
                              middleware-resolve-config])
       ::cmd-spec {:target
-                  {:desc "edn, flat-ssh-keys, flat-emails, flat-uris"
+                  {:desc (->> (methods user-commands/build!) keys (map name) sort (str/join ", "))
                    :coerce :keyword
                    :default :edn
-                   :required false}
+                   :required true}
       
                   ;; TODO: Rename this var...
                   :context-ref
                   {:desc "The context to use to build"
                    :coerce :string
                    :default "#**"
-                   :required false}}
+                   :required true}}
+      :validate {:target (->> (methods user-commands/build!) keys set)
+                 :context-ref {:pred (m/validator #'ps/Context)
+                               :ex-msg (fn [m] 
+                                         (str "Invalid value for option :context-ref: " (:value m) "\n"
+                                              "Should be e.g.: #**, #food.deep-fried, #plant.herbs.*"))}}
       :args->opts [:target :context-ref]}
      {:cmds []
       :fn (wrap-middlewares identity
