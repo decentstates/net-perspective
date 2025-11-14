@@ -14,7 +14,7 @@
     [java.time Instant ZoneId]
     [java.security MessageDigest]))
 
-(defn sha256 [s]
+(defn sha256 [^String s]
   (have! string? s)
   (let [hash (MessageDigest/getInstance "SHA-256")]
     (. hash update (.getBytes s))
