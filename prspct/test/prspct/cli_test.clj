@@ -145,6 +145,8 @@
                   #{["email:alice@example.com" ["net-perspective" "announcements"]]
                     ["uri:feed:https://net-perspective.org/feed.atom" ["net-perspective" "announcements"]]}}))))))
 
+  ;; TODO: Contacts test
+
   (testing "command failure"
     (with-temp-dir [a-base-dir {}
                     srv-dir {}]

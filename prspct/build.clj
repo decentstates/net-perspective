@@ -36,7 +36,6 @@
   (let [ret (shell/sh "native-image" 
                       "-jar" (:uber-file opts) 
                       "-o" (:native-image-file opts)
-                      "-Os" ;; Testing smaller file size
                       "--features=clj_easy.graal_build_time.InitClojureClasses"
                       "--initialize-at-build-time=org.slf4j.helpers.NOPLoggerFactory"
                       "--initialize-at-build-time=java.time.Instant"
