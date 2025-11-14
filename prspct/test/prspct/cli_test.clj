@@ -123,6 +123,13 @@
 
                   ["net-perspective" "announcements"]
                   #{["uri:feed:https://net-perspective.org/feed.atom" ["net-perspective" "announcements"]]}}))
+          (is (= (sut/-main "build" "flat-uris" "#**" "--base-dir" a-base-dir)
+                 #{"net-perspective.org"
+                   "feed:https://net-perspective.org/feed.atom"})) 
+          (is (= (sut/-main "build" "flat-emails" "#non-existent" "--base-dir" a-base-dir)
+                 #{})) 
+          (is (= (sut/-main "build" "flat-emails" "#net-perspective" "--base-dir" a-base-dir)
+                 #{"admin@net-perspective.org"})) 
           (is (= (sut/-main "build" "edn" "#**" "--base-dir" b-base-dir)
                  {["net-perspective" "*"]
                   #{["email:alice@example.com" ["net-perspective" "*"]]}
