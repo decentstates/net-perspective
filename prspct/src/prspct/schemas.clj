@@ -803,7 +803,13 @@
 
 (def UserConfigDSL
   [:cat 
-   [:* [:alt #'UserConfigDSLContextEntry]]])
+   [:* [:alt [:and #'UserConfigDSLContextEntry
+                   [:cat 
+                    [:= 'ctx]
+                    [:re
+                     {:doc "Root contexts must start with a hash"}
+                     #"^#.*$"]
+                    [:* :any]]]]]])
 
 (defn parse-user-config-dsl-relation 
   ([transitivity object-identifier object-context]
