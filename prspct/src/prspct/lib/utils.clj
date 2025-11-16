@@ -4,6 +4,8 @@
     [clojure.java.shell :as shell]
     [clojure.string]
 
+    [cognitect.anomalies :as anom]
+
     [taoensso.telemere :as tel]
     [taoensso.truss :refer [have have! have!? have? ex-info!]]
 
@@ -43,7 +45,6 @@
               (mett/time-transformer))
     (mett/time-transformer)))
 
-
 (defmacro with-temp-dir
   "Like fs/with-temp-dir but allows arbitrary temp-dirs.
 
@@ -74,8 +75,47 @@
     (println c)))
          
 
+(defn ssh-keygen [& args]
+  (let [args (into ["ssh-keygen"] args)
+        ret (apply shell/sh args)]
+    (assoc ret :args args)))
 
-    
-    
+(defn assert-sh-ret [ret]
+  (when (not= 0 (:exit ret))
+    (ex-info! "ssh-keygen command failed"
+              {::anom/category ::anom/fault
+               :ret ret})))
 
+(defmacro with-temp-key-pairs
+  [bindings & body]
+  (have! vector? bindings)
+  (have! even? (count bindings))
+  (cond
+    (= (count bindings) 0)
+    `(do ~@body)
+
+    (and (symbol? (bindings 0))
+         (map? (bindings 1)))
+
+    (let [[binding-name options] (subvec bindings 0 2)]
+      `(with-temp-dir [d# {}]
+         (let [~binding-name
+               (let [private-key-path# (str d# "/key")
+                     public-key-path# (str d# "/key.pub")]
+                 (have! (ssh-keygen "-t" "ed25519" "-f" private-key-path# "-q" "-N" ""))
+                 (have fs/exists? private-key-path#)
+                 (have fs/exists? public-key-path#)
+                 {:private
+                  private-key-path#
+
+                  :public
+                  public-key-path#})]
+           (with-temp-key-pairs ~(subvec bindings 2) ~@body))))))
+
+(comment
+  (with-temp-key-pairs [a {}
+                        b {}]
+    (pprint a)
+    (pprint b)))
+  
 

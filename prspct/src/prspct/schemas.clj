@@ -163,21 +163,29 @@
     (mt/key-transformer {:encode name :decode keyword})
     mt/string-transformer))
 
+
+(defn encode-edn-message-body [msg-schema body]
+  (let [;; TODO: I think this is a bug in malli:
+        msg-schema' (if (var? msg-schema) (deref msg-schema) msg-schema)
+        body-schema (get (m/properties msg-schema') :email/body-schema)]
+     (with-out-str
+       (pprint 
+         (m/encode body-schema 
+                   body
+                   (mett/time-transformer))))))
+
+
 (defn edn-message->simple-message [msg-schema msg]
   (let [;; TODO: I think this is a bug in malli:
         msg-schema' (if (var? msg-schema) (deref msg-schema) msg-schema)
-        header-schema (get (m/properties msg-schema') :email/header-schema)
-        body-schema (get (m/properties msg-schema') :email/body-schema)]
+        header-schema (get (m/properties msg-schema') :email/header-schema)]
     {:headers 
      (m/encode header-schema 
                (:headers msg) 
                edn-message<->simple-message-header-transformer)
      :body
-     (with-out-str
-       (pprint 
-         (m/encode body-schema 
-                   (:body msg)
-                   (mett/time-transformer))))}))
+     (encode-edn-message-body msg-schema (:body msg))}))
+
 
 (defn simple-message->edn-message [msg-schema simple-message]
   (let [;; TODO: See same todo above:
@@ -206,13 +214,6 @@
 
 (comment
   (edn-message->simple-message #'ExampleMessage (mg/generate #'ExampleMessage)))
-
-
-;; ### Signing
-
-(def MessageSignature
-  "Unimplemented, will be similar to DKIM"
-  [:string])
 
 
 ;; ### Message Transfer
@@ -305,6 +306,7 @@
    [:publish-info/time-start [:time/instant]]
    [:publish-info/time-finish [:time/instant]]
    [:publish-info/publishers [:map-of #'MessagePublisherConfig #'PublishInfoPublisher]]])
+
 
 (defn encode-publish-info [publish-info]
   (with-out-str
@@ -530,29 +532,14 @@
 
 (def SubjectPair
   [:tuple #'Identifier #'InternalContext])
-  
+
 (def ObjectPair
   [:tuple #'Identifier #'InternalContext])
-
-(defn- ObjectPairPath-respects-loops [object-pair-path]
-  (or (distinct? object-pair-path)
-      (and (= :loop (pop object-pair-path))
-           (distinct? (pop (pop object-pair-path))))))
-
-(def ObjectPairPath
-  [:and 
-   {:gen/schema [:cat [:* #'ObjectPair] [:? [:= :loop]]]
-    :gen/fmap vec}
-   ;; TODO: I think there is a better way of doing this in Malli
-   [:vector [:or #'ObjectPair [:= :loop]]]
-   [:cat [:* #'ObjectPair] [:? [:= :loop]]]
-   [:fn ObjectPairPath-respects-loops]])
 
 (def Relation 
   [:map
      [:relation/subject-pair #'SubjectPair]
      [:relation/object-pair #'ObjectPair]
-     ;; TODO: Consider moving to RelationConfig
      [:relation/transitive? :boolean]
      [:relation/public? :boolean]])
 
@@ -619,6 +606,39 @@
    [:vector #'Relation]])
 
 
+;; ### Signing
+
+(def EncodedPublicationSignature :string)
+
+(def PublicationSignature
+  [:map
+   [:version :string]
+   [:id #'IdentifierSSHKey]
+   [:hash-algorithm [:enum "sha256"]]
+   [:hash :string]
+   [:signature-method [:enum "ssh-sign-whole-msg"]]
+   [:signature :string]])
+
+(def publication-signature-transformer
+  (mt/transformer 
+    (mett/time-transformer)
+    (mt/key-transformer {:encode name :decode keyword})
+    mt/string-transformer))
+
+(defn encode-publication-signature [publication-signature]
+  (pr-str
+    (m/encode
+      #'PublicationSignature
+      publication-signature
+      publication-signature-transformer)))
+
+(defn decode-publication-signature [encoded-publication-signature]
+  (m/decode
+    #'PublicationSignature
+    (edamame/parse-string encoded-publication-signature)
+    publication-signature-transformer))
+
+
 ;; ### Publications
 ;; A publication is the central API contract we expose.
 
@@ -630,7 +650,8 @@
    [:publication/valid-from [:time/instant]]
    [:publication/valid-until [:time/instant]]
    [:publication/self-identifier #'Identifier]
-   [:publication/relations [:vector #'Relation]]])
+   [:publication/relations [:vector #'Relation]]
+   [:publication/signature {:optional true} #'EncodedPublicationSignature]])
 
 ;; REVIEW: What should be here and what should be in publication, should this exist.
 (def PublicationMessageHeaders
@@ -650,13 +671,10 @@
    [:x-np-client [:re non-control-ascii-except-clrf-re]]
    [:x-np-id #'Identifier]
    [:x-np-timestamp :time/instant]
-   [:x-np-intent [:enum :publication]]
-   ;; TODO: move to the publication?
-   [:x-np-signature #'MessageSignature]])
+   [:x-np-intent [:enum :publication]]])
 
 (def PublicationMessage
   (edn-message-schema #'PublicationMessageHeaders #'Publication))
-
 
 
 ;; ## User Configuration
@@ -679,19 +697,16 @@
   [:string
    {:decode/file-path {:leave expand-home}}])
 
+(def PublishToName :string)
+(def PublishToEmail [:re #"^.*@.*$"]) 
+
 (def PublishToConfig
-  [:or
-    [:map
-     [:publisher :keyword]
-     [:as-from #'InternetAddress]
-     [:as-id  #'Identifier]]
-    [:map
-     [:publisher :keyword]
-     [:as-from #'InternetAddress]
-     [:as-ssh-key 
-      [:map
-       [:public-key-path #'FilePath]
-       [:private-key-path #'FilePath]]]]])
+  [:map
+   [:publisher :keyword]
+   [:name #'PublishToName]
+   [:email #'PublishToEmail]
+   [:ssh-key-id/public-key-path #'FilePath]
+   [:ssh-key-id/private-key-path #'FilePath]])
 
 (def UserObjectPair
   [:tuple #'UserConfigIdentifier #'InternalContext])
@@ -701,7 +716,7 @@
    [:relation/object-pair #'UserObjectPair]
    [:relation/transitive? :boolean]
    [:relation/public? :boolean]])
-   
+
 (def UserContextConfig
   [:map
    [:np/sources    {:optional true} [:map-of :keyword #'MessageSourceConfig]]
@@ -733,8 +748,10 @@
          {:np/sources {}
           :np/publishers {} ;;ctx-config
           :np/publish-to [{:publisher :blah
-                           :as-from "asdf <>"
-                           :as-id   "email:as@df"}]
+                           :name  "Alice"
+                           :email "alice@example.com"
+                           :ssh-key-id/public-key-path "/tmp/example-key-stub"
+                           :ssh-key-id/private-key-path "/tmp/example-key-stub.pub"}]
           :np.app.news/sources {}
           :np.app.news/publishers {}
           :np.app.news/publish-to {}
@@ -868,13 +885,20 @@
 ;; What we work with. A stricter subset of UserConfig
 ;; What we process UserConfig into.
 
+(def ContactsConfig
+  [:map
+   [:ctx :string]
+   [:under-namespace [:or :keyword :string]]])
+
 (def WorkingContextConfig
   [:map
+   {:closed true}
    [:np/sources    {:optional true} [:map-of :keyword #'MessageSourceConfig]]
    [:np/publishers {:optional true} [:map-of :keyword #'MessagePublisherConfig]]
    [:np/publish-to {:optional true} [:vector #'PublishToConfig]]
    ;; TODO: Apply defaults only to "#"
-   [:np/publication-validity-days {:optional true :default 30} [:int {:min 1}]]])
+   [:np/publication-validity-days {:optional true :default 30} [:int {:min 1}]]
+   [:np.contacts/configs {:optional true} [:vector #'ContactsConfig]]])
 
 (def WorkingUserRelation
   [:map

@@ -33,7 +33,8 @@
             pkgs.makeWrapper
             clojure
             pkgs.git
-            pkgs.breakpointHook
+            # Breaks on macos
+            # pkgs.breakpointHook
           ];
 
           buildPhase = ''

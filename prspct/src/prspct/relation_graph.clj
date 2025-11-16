@@ -357,7 +357,6 @@
             (condensed-node->components rnode))
       [rnode rnode])))
 
-;; TODO: test
 (defn resolve-graph-globs 
   "Produces a new graph of relations that resolve all globs. O(n)."
   [g]
