@@ -51,8 +51,8 @@
    :version version
    ;; NOTE: These will fail in remote nix builds, wontfix.
    :git-hash (b/git-process {:git-args "rev-parse HEAD"})
-   :git-shorthash (b/git-process {:git-args "rev-parse --short HEAD"})
-   :git-status (b/git-process {:git-args "status --porcelain"})})
+   :git-shorthash (b/git-process {:git-args "rev-parse --short HEAD"})})
+   ; :git-status (b/git-process {:git-args "status --porcelain"})})
 
 (defn ci-light "Run the CI pipeline of tests (and build the uberjar,) minus native-image." [opts]
   (test opts)

@@ -33,6 +33,7 @@
             pkgs.makeWrapper
             clojure
             pkgs.git
+            pkgs.openssh
             # Breaks on macos
             # pkgs.breakpointHook
           ];
@@ -58,6 +59,7 @@
               pkgs.clj-kondo
               pkgs.graphviz
               pkgs.zip
+              pkgs.openssh
               # `clojure-nix-locker` script
               prspct-clojure-nix-locker.locker
             ];
