@@ -16,7 +16,8 @@
     [malli.experimental.time.transform :as mett]
     [malli.generator :as mg]
     [malli.registry :as mr]
-    [malli.transform :as mt])
+    [malli.transform :as mt]
+    [malli.util :as mu])
   (:import
     [java.time OffsetDateTime ZoneOffset]))
 
@@ -717,13 +718,21 @@
    [:relation/transitive? :boolean]
    [:relation/public? :boolean]])
 
+
+(def ContactsConfig
+  [:map
+   [:ctx :string]
+   [:under-namespace [:or :keyword :string]]])
+
 (def UserContextConfig
   [:map
+   {:closed true}
    [:np/sources    {:optional true} [:map-of :keyword #'MessageSourceConfig]]
    [:np/publishers {:optional true} [:map-of :keyword #'MessagePublisherConfig]]
    [:np/publish-to {:optional true} [:vector #'PublishToConfig]]
    ;; TODO: Apply defaults only to "#"
-   [:np/publication-validity-days {:optional true :default 30} [:int {:min 1}]]])
+   [:np/publication-validity-days {:optional true :default 30} [:int {:min 1}]]
+   [:np.contacts/configs {:optional true} [:vector #'ContactsConfig]]])
 
 (def UserContext
   [:map
@@ -885,18 +894,12 @@
 ;; What we work with. A stricter subset of UserConfig
 ;; What we process UserConfig into.
 
-(def ContactsConfig
-  [:map
-   [:ctx :string]
-   [:under-namespace [:or :keyword :string]]])
-
 (def WorkingContextConfig
   [:map
    {:closed true}
    [:np/sources    {:optional true} [:map-of :keyword #'MessageSourceConfig]]
    [:np/publishers {:optional true} [:map-of :keyword #'MessagePublisherConfig]]
    [:np/publish-to {:optional true} [:vector #'PublishToConfig]]
-   ;; TODO: Apply defaults only to "#"
    [:np/publication-validity-days {:optional true :default 30} [:int {:min 1}]]
    [:np.contacts/configs {:optional true} [:vector #'ContactsConfig]]])
 
