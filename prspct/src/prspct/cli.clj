@@ -15,6 +15,7 @@
     [malli.core :as m]
     [malli.error :as me]
     [malli.util :as mu]
+    [malli.transform :as mt]
 
     [edamame.core :as edamame]
 
@@ -368,7 +369,10 @@
 
         user-config-dsl
         (try*
-          (m/coerce #'ps/UserConfigDSL user-config-edn)
+          (m/coerce 
+            #'ps/UserConfigDSL 
+            user-config-edn
+            (mt/transformer {:name :file-path}))
           (catch :ex-info e
             (user-config-dsl-coercion-error user-config-path e)))
 

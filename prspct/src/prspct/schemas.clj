@@ -689,7 +689,7 @@
 
 
 (defn expand-home [s]
-  (if (.startsWith s "~")
+  (if (str/starts-with? s "~")
     (str/replace-first s "~" (System/getProperty "user.home"))
     s))
 
