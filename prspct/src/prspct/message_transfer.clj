@@ -171,8 +171,8 @@
 (defn load-fetch 
   "Loads and parses a fetch into a seq of any-messages.
 
-  ::publication-message is true if it has been parsed as a publication message.
-  ::publication-message is false if it can't be parsed, if possible the message
+  ::publication-message? is true if it has been parsed as a publication message.
+  ::publication-message? is false if it can't be parsed, if possible the message
   is parsed as a simple-message and included in the body.
   ::publication-message-exception and ::simple-message-exception will be attached
   if they can't be parsed respectively."
@@ -188,14 +188,14 @@
             message
             (try
               (-> (ps/eml->edn-message ps/PublicationMessage contents)
-                  (assoc-in [:headers ::publication-message] true))
+                  (assoc-in [:headers ::publication-message?] true))
               (catch Exception publication-message-exception
                 (try
-                  {:headers {::publication-message false
+                  {:headers {::publication-message? false
                              ::publication-message-exception publication-message-exception}
                    :body (ps/eml->simple-message contents)}
                   (catch Exception simple-message-exception
-                    {:headers {::publication-message false
+                    {:headers {::publication-message? false
                                ::publication-message-exception publication-message-exception
                                ::simple-message-exception simple-message-exception}
                      :body contents}))))]

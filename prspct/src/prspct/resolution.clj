@@ -7,6 +7,7 @@
    [malli.core :as m]
 
    [prspct.relation-graph :as rel-graph]
+   [prspct.publication]
    [prspct.schemas :as ps]])
 
 
@@ -49,13 +50,16 @@
 ;;TODO: implement
 
 (defn message-filter-valid-publication-message [fetched-publication-message]
-  (get-in fetched-publication-message [:headers :prspct.message-transfer/publication-message]))
+  (get-in fetched-publication-message [:headers :prspct.message-transfer/publication-message?]))
 
 (defn message-filter-valid-date [fetched-publication-message]
   fetched-publication-message)
 
 (defn message-filter-valid-signature [fetched-publication-message]
-  fetched-publication-message)
+  (let [publication (:body fetched-publication-message)
+        ret (prspct.publication/verify-publication publication)]
+    (tel/spy! :debug ret)
+    (get ret :valid? false)))
 
 (defn message-filter-matching-self-identifier [fetched-publication-message]
   fetched-publication-message)
@@ -158,6 +162,8 @@
          :used  (count usable-publication-messages)
          :filtered (- (count fetched-publication-messages)
                       (count usable-publication-messages))}
+
+        _ (tel/spy! publication-message-stats)
 
         _ (tel/event! ::resolve-config:filtered-publication-messages)
 
