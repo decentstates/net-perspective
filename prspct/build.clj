@@ -40,7 +40,8 @@
                       "--initialize-at-build-time=org.slf4j.helpers.NOPLoggerFactory"
                       "--initialize-at-build-time=java.time.Instant"
                       "-classpath" (java.lang.System/getProperty "java.class.path")
-                      "-H:IncludeResources=.*build-info.edn")]
+                      "-H:IncludeResources=.*build-info.edn"
+                      "-H:IncludeResources=.*prspct-init.edn")]
     (print (:out ret))
     (print (:err ret)))
   opts)

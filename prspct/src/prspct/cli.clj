@@ -1,6 +1,6 @@
 (ns prspct.cli
   (:require 
-    [clojure.java.io]
+    [clojure.java.io :as io]
     [clojure.pprint :refer [pprint]]
     [clojure.string :as str]
     [clojure.stacktrace]
@@ -416,14 +416,7 @@
   (reduce (fn [acc middleware] (middleware acc)) handler (reverse middlewares)))
 
 (defn init! [ctx]
-  (let [opts (:opts ctx)
-
-        edn 
-        [(dsl/ctx "#" {:np/sources {}
-                       :np/publishers {}
-                       :np/publish-to []}
-                  (dsl/ctx "underties" {}))]]
-
+  (let [opts (:opts ctx)]
     (doseq [kw [:prspct-dir :user-config-path]]
       (let [p (get opts kw)]
         (when (fs/exists? p)
@@ -437,7 +430,8 @@
     (spit (str (fs/path (:prspct-dir opts) ".gitignore"))
           "*")
 
-    (dsl/write-config (:user-config-path opts) edn)
+    (spit (:user-config-path opts) 
+          (slurp (io/resource "prspct-init.edn")))
 
     (let [fetch-0 (fs/path (:fetches-dir opts) "0")]
       (fs/create-dirs fetch-0)
