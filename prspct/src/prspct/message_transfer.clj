@@ -181,7 +181,7 @@
         fetch-info (-> fetch-info-path slurp ps/decode-fetch-info)]
     (for [[_ fetch-info-source] (:fetch-info/sources fetch-info)
           :let [output-dir (str fetch-dir "/" (:fetch-info-source/output-dir fetch-info-source))]
-          file (map str (fs/glob output-dir "*.eml"))]
+          file (map str (fs/glob output-dir "**.eml"))]
       (let [contents 
             (slurp file)
 
