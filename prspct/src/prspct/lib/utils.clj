@@ -97,8 +97,9 @@
     (and (symbol? (bindings 0))
          (map? (bindings 1)))
 
-    (let [[binding-name options] (subvec bindings 0 2)]
-      `(with-temp-dir [d# {}]
+    (let [[binding-name options] (subvec bindings 0 2)
+          temp-dir-options (select-keys options [:no-delete])]
+      `(with-temp-dir [d# ~temp-dir-options] 
          (let [~binding-name
                (let [private-key-path# (str d# "/key")
                      public-key-path# (str d# "/key.pub")]
