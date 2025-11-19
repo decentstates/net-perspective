@@ -1,7 +1,7 @@
 ### Before release:
 
+- [ ] Simplify naming
 - [ ] Can we apply licenses to the messages?
-- [ ] Set up a clojure-like contributor agreement
 - [ ] net-perspective/netperspective github
 - [ ] set up mail forwarding on main domains
 
@@ -20,10 +20,7 @@
 
 ### Features
 
-- [ ] did documents
-- [ ] unicode contexts? multilingual?
-- [ ] add message limits
-- [ ] some kind of did hashing for anonymnity?
+- [ ] 
 
 
 ### Simplification
@@ -33,7 +30,7 @@
 
 ### Maintenance
 
-- [x] Install SLF4J connector
+- [ ]
 
 
 ### Security
@@ -45,7 +42,6 @@
 
 - [ ] Google Takeout parser
 - [ ] Browser extension for captures - generates command line to run, or email.
-- [ ] RSS/Atom feed to mail-gossip gateway - usable for blogs, fediverse, youtube.
 
 
 ## clojure misc
@@ -54,5 +50,3 @@
 - [ ] Ensure schema is an extension of previous schema
 - [ ] Keep track of all schema versions
 - [ ] file template system
-- [ ] cool if there was a "do not use variable below here signal"
-      ;; kill: variable
