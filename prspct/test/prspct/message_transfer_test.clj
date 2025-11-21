@@ -22,11 +22,11 @@
 (deftest shell-source-test
   (testing "basics"
     (fs/with-temp-dir [d {}] 
-      (is (= (sut/source-fetch! (sut/shell-source ["echo" "cp" "/from/here" :output-dir]) d)
-             #:transfer-result{:success? true
+      (is (= #:transfer-result{:success? true
                                :exception nil
                                :out (str "cp /from/here " d "\n")
-                               :err ""})))))
+                               :err ""}
+             (sut/source-fetch! (sut/shell-source ["echo" "cp" "/from/here" :output-dir]) d))))))
 
 (deftest fetch-test
   (testing "basics"
@@ -50,4 +50,5 @@
 
               publish-config->input-dir (sut/write-edn-message-envelopes! envelopes' parent-input-dir)
               publish-info (sut/publish! publish-config->input-dir parent-input-dir)]
-          (is (= (count envelopes) (count (fs/glob publish-dir "**.eml")))))))))
+          (is (= (count (fs/glob publish-dir "**.eml")) 
+                 (count envelopes))))))))

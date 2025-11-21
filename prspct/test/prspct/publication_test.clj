@@ -23,10 +23,14 @@
         (let [sig (sut/ssh-signature s (:private pair))
               corrupt-sig (str/replace-first sig #"\n" "\nA")
               corrupt-s (str "corrupted-" s)]
-          (is (= true (sut/verify-ssh-signature s sig (:public pair))))
-          (is (= false (sut/verify-ssh-signature s corrupt-sig (:public pair))))
-          (is (= false (sut/verify-ssh-signature corrupt-s sig (:public pair))))
-          (is (= false (sut/verify-ssh-signature corrupt-s corrupt-sig (:public pair)))))))))
+          (is (= true 
+                 (sut/verify-ssh-signature s sig (:public pair))))
+          (is (= false 
+                 (sut/verify-ssh-signature s corrupt-sig (:public pair))))
+          (is (= false 
+                 (sut/verify-ssh-signature corrupt-s sig (:public pair))))
+          (is (= false 
+                 (sut/verify-ssh-signature corrupt-s corrupt-sig (:public pair)))))))))
 
 (deftest publication-signature-test
   (utils/with-temp-key-pairs [pair {}]
@@ -54,9 +58,12 @@
 
               corrupted-signature-signed-publication
               (assoc signed-publication :publication/signature "asdf")]
-          (is (= true (:valid? (sut/verify-publication signed-publication))))
-          (is (= false (:valid? (sut/verify-publication corrupted-signed-publication))))
-          (is (= false (:valid? (sut/verify-publication corrupted-signature-signed-publication))))))))
+          (is (= true 
+                 (:valid? (sut/verify-publication signed-publication))))
+          (is (= false 
+                 (:valid? (sut/verify-publication corrupted-signed-publication))))
+          (is (= false 
+                 (:valid? (sut/verify-publication corrupted-signature-signed-publication))))))))
 
 (comment
   (tel/with-min-level :debug

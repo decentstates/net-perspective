@@ -89,8 +89,8 @@
              #{[:contacts/d ["null"]] ["email:d@test.com" ["null"]]}}}]
            
       ;; TODO: How can I refer to myself.
-      (is (= (select-keys res [:resolved-contexts :working-contexts])
-             expected)))))
+      (is (= expected
+             (select-keys res [:resolved-contexts :working-contexts]))))))
 
 (comment
   (meta #'resolve-config-test)

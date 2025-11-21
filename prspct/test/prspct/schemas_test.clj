@@ -61,10 +61,10 @@
                          (#'ps/simple-message->eml msg)))))
   (testing "basic message"
     (let [basic-message  "from:me\r\nto:you\r\n\r\nhello"]
-      (is (= (#'ps/eml->simple-message basic-message)
-             {:headers {"from" "me"
+      (is (= {:headers {"from" "me"
                         "to" "you"}
-              :body "hello"})))))
+              :body "hello"}
+             (#'ps/eml->simple-message basic-message))))))
 
 (deftest edn-message-test
   (checking "symmetry edn->simple-message->edn"

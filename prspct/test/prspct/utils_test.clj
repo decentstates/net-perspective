@@ -49,6 +49,8 @@
 
 (deftest sha256-test
   (doseq [test-vec sha256-test-vectors]
-    (is (= (sut/sha256 (:message test-vec)) (:expected test-vec))))
+    (is (= (:expected test-vec)
+           (sut/sha256 (:message test-vec)))))
   (doseq [test-vec sha256-fail-vectors]
-    (is (not= (sut/sha256 (:message test-vec)) {:expected test-vec}))))
+    (is (not= {:expected test-vec}
+              (sut/sha256 (:message test-vec))))))

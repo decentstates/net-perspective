@@ -39,15 +39,17 @@
                     (str base-dir "/.prspct/fetches.HEAD")
                     (str base-dir "/.prspct/fetches.HEAD/fetch-info.edn")]))))))
 
+(def ^:dynamic *no-delete-test-data* false)
+
 (deftest integration-test
   (testing "basic roundtrip"
-    (utils/with-temp-key-pairs [a-key-pair {}
-                                b-key-pair {}
-                                c-key-pair {}]
-      (utils/with-temp-dir [a-base-dir {}
-                            b-base-dir {}
-                            c-base-dir {}
-                            srv-dir {}] 
+    (utils/with-temp-key-pairs [a-key-pair {:no-delete *no-delete-test-data*}
+                                b-key-pair {:no-delete *no-delete-test-data*}
+                                c-key-pair {:no-delete *no-delete-test-data*}]
+      (utils/with-temp-dir [a-base-dir {:no-delete *no-delete-test-data*}
+                            b-base-dir {:no-delete *no-delete-test-data*}
+                            c-base-dir {:no-delete *no-delete-test-data*}
+                            srv-dir {:no-delete *no-delete-test-data*}] 
         (sut/-main "init" "--base-dir" a-base-dir)
         (sut/-main "init" "--base-dir" b-base-dir)
         (sut/-main "init" "--base-dir" c-base-dir)
@@ -138,8 +140,7 @@
           (sut/-main "fetch" "--base-dir" b-base-dir)
           (sut/-main "fetch" "--base-dir" c-base-dir)
           (with-out-str
-            (is (= (sut/-main "build" "edn" "#**" "--base-dir" a-base-dir)
-                   {["net-perspective"]
+            (is (= {["net-perspective"]
                     #{["email:admin@net-perspective.org" ["net-perspective" "*"]]
                       ["uri:net-perspective.org" ["net-perspective" "*"]]}
 
@@ -147,16 +148,16 @@
                     #{["email:admin@net-perspective.org" ["net-perspective" "*"]]}
 
                     ["net-perspective" "announcements"]
-                    #{["uri:feed:https://net-perspective.org/feed.atom" ["net-perspective" "announcements"]]}}))
-            (is (= (sut/-main "build" "flat-uris" "#**" "--base-dir" a-base-dir)
-                   #{"net-perspective.org"
-                     "feed:https://net-perspective.org/feed.atom"})) 
-            (is (= (sut/-main "build" "flat-emails" "#non-existent" "--base-dir" a-base-dir)
-                   #{})) 
-            (is (= (sut/-main "build" "flat-emails" "#net-perspective" "--base-dir" a-base-dir)
-                   #{"admin@net-perspective.org"})) 
-            (is (= (sut/-main "build" "edn" "#**" "--base-dir" b-base-dir)
-                   {["contacts" "alice"]
+                    #{["uri:feed:https://net-perspective.org/feed.atom" ["net-perspective" "announcements"]]}}
+                   (sut/-main "build" "edn" "#**" "--base-dir" a-base-dir)))
+            (is (= #{"net-perspective.org"
+                     "feed:https://net-perspective.org/feed.atom"}
+                   (sut/-main "build" "flat-uris" "#**" "--base-dir" a-base-dir))) 
+            (is (= #{}
+                   (sut/-main "build" "flat-emails" "#non-existent" "--base-dir" a-base-dir))) 
+            (is (= #{"admin@net-perspective.org"}
+                   (sut/-main "build" "flat-emails" "#net-perspective" "--base-dir" a-base-dir))) 
+            (is (= {["contacts" "alice"]
                     #{[a-ident ["self"]]}
                     
                     ["net-perspective" "*"]
@@ -164,10 +165,9 @@
                       [a-ident ["net-perspective" "*"]]}
 
                     ["net-perspective" "announcements"]
-                    #{[a-ident ["net-perspective" "announcements"]]}}))
-            (is (= (sut/-main "build" "edn" "#**" "--base-dir" c-base-dir)
-                   {
-                    ["contacts" "alice"]
+                    #{[a-ident ["net-perspective" "announcements"]]}}
+                   (sut/-main "build" "edn" "#**" "--base-dir" b-base-dir)))
+            (is (= {["contacts" "alice"]
                     #{[a-ident ["self"]]}
                     
                     ["net-perspective" "*"] 
@@ -177,12 +177,13 @@
 
                     ["net-perspective" "announcements"]
                     #{[a-ident ["net-perspective" "announcements"]]
-                      ["uri:feed:https://net-perspective.org/feed.atom" ["net-perspective" "announcements"]]}})))))))
+                      ["uri:feed:https://net-perspective.org/feed.atom" ["net-perspective" "announcements"]]}}
+                   (sut/-main "build" "edn" "#**" "--base-dir" c-base-dir))))))))
 
   (testing "command failure"
-    (utils/with-temp-key-pairs [a-key-pair {}]
-      (utils/with-temp-dir [a-base-dir {}
-                            srv-dir {}]
+    (utils/with-temp-key-pairs [a-key-pair {:no-delete *no-delete-test-data*}]
+      (utils/with-temp-dir [a-base-dir {:no-delete *no-delete-test-data*}
+                            srv-dir {:no-delete *no-delete-test-data*}]
         (sut/-main "init" "--base-dir" a-base-dir)
         (let [a-prspct-edn 
               [(dsl/ctx "#" {:np/sources {:main 
@@ -204,7 +205,8 @@
                                               :name "Alice"
                                               :email "alice@example.com"
                                               :ssh-key-id/public-key-path (:public a-key-pair)
-                                              :ssh-key-id/private-key-path (:private a-key-pair)}]}
+                                              :ssh-key-id/private-key-path (:private a-key-pair)}]
+                             :np.contacts/configs []}
 
                         (dsl/ctx "net-perspective" {}
                                  (dsl/-> "uri:net-perspective.org" "#net-perspective.*" :public)
@@ -217,11 +219,13 @@
           (let [out-map
                 (prspct.test-utils/with-out-data-map
                   (sut/-main "fetch" "--base-dir" a-base-dir))]
-            (is (= (:res out-map)
-                   :error-exit))
+            (is (= :error-exit
+                   (:res out-map)))
             (is (re-find #":cognitect\.anomalies/unavailable"
                          (:err out-map)))
-            (is (= (:out out-map) ""))))))))
+            (is (= "" 
+                   (:out out-map))))))))) 
 
 (comment
-  (integration-test))
+  (binding [*no-delete-test-data* true]
+    (integration-test)))
