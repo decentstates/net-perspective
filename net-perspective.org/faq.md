@@ -44,3 +44,38 @@ With this system, using an SFTP server, data will be accessible to `n`
 users and `1` server, with the data being sent via the end-to-end encrypted
 ssh protocol. Similarly if anyone compromises or leaks their device data
 (including the server) then all the data is compromised.
+
+
+## Isn't this the same as PKI / PGP web of trust?
+
+PKI is about centralised trust over domain name ownership, and linking domain
+names to trusted keys for secure communication with domain names. 
+
+PGP's web of trust aims to be decentralized PKI, linking identity to keys, for
+secure communication with identities.
+
+Net Perspective doesn't care about identities (an identifier != identity). It
+is about content within contexts, and trust in content under that context.
+This trust isn't about trust in identity, it is about moderation and curation.
+
+
+## Is this similar to lobste.rs?
+
+Lobste.rs uses an invitation system to participate in discussion, this is used
+for moderation purposes, and the whole tree is public: https://lobste.rs/users
+
+Net Perspective is decentralised, it is about pieces of a graph instead of a
+single tree, and we each put together those pieces to form separate
+perspectives. Further, there is no general trust, there is only trust under a
+specific context. Under Net Perspective, your data is also transportable.
+
+
+## Is this crytpo(coin) related?
+
+This project is entirely unrelated to anything crypto, it is not made for
+making money, it is not made for transporting assets of any sort between
+people, it doesn't use the underlying tech of crypto.
+
+The idea is people will (hopefully) use this because of the inherent
+(non-monetary) value of a tool that improves their lives rather then
+speculative value of some future that may or may not be actualised.
