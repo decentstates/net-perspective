@@ -32,7 +32,6 @@ want to submit a bug or a patch?
 you must submit a contributors agreement before submitting code
 
 
-
 ## warnings:
 
 - not safe for secret, political or otherwise sentitive intentions.
@@ -51,7 +50,6 @@ definitely be following them.
 - use tor or a proxy service
 - use separate keys to what you use elsewhere
 - for the paranoid, use separate private keys and identifiers per context
-
 
 
 ## underties 
