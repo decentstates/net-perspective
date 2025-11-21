@@ -650,7 +650,7 @@
    [:publication/version [:enum :alpha-do-not-spread]]
    [:publication/valid-from [:time/instant]]
    [:publication/valid-until [:time/instant]]
-   [:publication/invalidates-previous-publications-from [:time/instant]]
+   [:publication/invalidates-previous-publications-until [:time/instant]]
    [:publication/self-identifier #'Identifier]
    [:publication/relations [:vector #'Relation]]
    [:publication/signature {:optional true} #'EncodedPublicationSignature]])

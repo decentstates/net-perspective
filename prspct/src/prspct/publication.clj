@@ -207,7 +207,7 @@
                                publish-instant 
                                ^int (:publication-validity-seconds publish-to-config) 
                                ChronoUnit/SECONDS)
-                :invalidates-previous-publications-from publish-instant
+                :invalidates-previous-publications-until publish-instant
                 :self-identifier (publish-to-config-ssh-key-id publish-to-config)
                 :relations relations})
 
