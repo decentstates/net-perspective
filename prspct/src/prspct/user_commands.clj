@@ -22,6 +22,7 @@
     [prspct.resolution :as resolution]
     [prspct.schemas :as ps])
   (:import
+    java.time.Instant
     java.io.File
     java.nio.file.Files
     java.nio.file.StandardCopyOption
@@ -81,11 +82,41 @@
                    (println "To revert run:")
                    (println (str "rm '" current-fetch-link "' && ln -s '" previous-fetch-head "' '" current-fetch-link "' ;")))}))))
 
+
 (defn publish! [resolved-config]
-  (let [envelopes
-        (vec (for [working-context    (:working-contexts resolved-config)
-                   publish-to (get-in working-context [:config :np/publish-to])]
-               (publication/context-publication-message-envelope working-context publish-to)))
+  (let [publish-instant
+        (java.time.Instant/now)
+
+        publish-to->working-contexts
+        (-> (group-by first
+              (for [working-context    (:working-contexts resolved-config)
+                    publish-to-config (get-in working-context [:config :np/publish-to])]
+                (let [publisher (get-in working-context [:config :np/publishers (:publisher publish-to-config)])
+                      publish-to-config (assoc publish-to-config :publisher (have! publisher))]
+                  [publish-to-config working-context])))
+            (update-vals (fn [xs] (into #{} (map second) xs))))
+
+        envelopes
+        (into []
+          (comp
+            (map (fn [[publish-to-config working-contexts]]
+                   (let [self-identifier
+                         (publication/publish-to-config-ssh-key-id publish-to-config)
+
+                         relations
+                         (into []
+                               (comp
+                                 (mapcat (partial publication/publishable-relations self-identifier))
+                                 (distinct))
+                               working-contexts)]
+                     (when relations
+                       (->> relations
+                            (publication/relations-publication publish-to-config publish-instant)
+                            (publication/sign-publication publish-to-config)
+                            (publication/publication-message publish-to-config)
+                            (publication/publication-message-envelope (:publisher publish-to-config)))))))
+            (filter identity))
+          publish-to->working-contexts)
 
         _ (tel/event! ::publish!:produced-envelopes)
 

@@ -650,6 +650,7 @@
    [:publication/version [:enum :alpha-do-not-spread]]
    [:publication/valid-from [:time/instant]]
    [:publication/valid-until [:time/instant]]
+   [:publication/invalidates-previous-publications-from [:time/instant]]
    [:publication/self-identifier #'Identifier]
    [:publication/relations [:vector #'Relation]]
    [:publication/signature {:optional true} #'EncodedPublicationSignature]])
@@ -707,7 +708,11 @@
    [:name #'PublishToName]
    [:email #'PublishToEmail]
    [:ssh-key-id/public-key-path #'FilePath]
-   [:ssh-key-id/private-key-path #'FilePath]])
+   [:ssh-key-id/private-key-path #'FilePath]
+   [:publication-validity-seconds {:optional true :default (* 60 60 24 7)} :int]]) 
+
+(def PublishToConfigFilled
+  (mu/assoc PublishToConfig :publisher #'MessagePublisherConfig))
 
 (def UserObjectPair
   [:tuple #'UserConfigIdentifier #'InternalContext])
@@ -730,8 +735,6 @@
    [:np/sources    {:optional true} [:map-of :keyword #'MessageSourceConfig]]
    [:np/publishers {:optional true} [:map-of :keyword #'MessagePublisherConfig]]
    [:np/publish-to {:optional true} [:vector #'PublishToConfig]]
-   ;; TODO: Apply defaults only to "#"
-   [:np/publication-validity-days {:optional true :default 30} [:int {:min 1}]]
    [:np.contacts/configs {:optional true} [:vector #'ContactsConfig]]])
 
 (def UserContext
@@ -868,8 +871,10 @@
                        (= "#" parent-context) (str "#" context-part)
                        :else (str parent-context "." context-part))
 
-        ;; TODO: Apply defaults
-        context-config (merge parent-config config)
+        context-config (m/coerce 
+                         #'UserContextConfig
+                         (merge parent-config config)
+                         (mt/default-value-transformer {::mt/add-optional-keys true}))
 
         this-ctx {:context (context->internal-context context-name)
                   :config context-config
@@ -897,11 +902,11 @@
 (def WorkingContextConfig
   [:map
    {:closed true}
-   [:np/sources    {:optional true} [:map-of :keyword #'MessageSourceConfig]]
-   [:np/publishers {:optional true} [:map-of :keyword #'MessagePublisherConfig]]
-   [:np/publish-to {:optional true} [:vector #'PublishToConfig]]
-   [:np/publication-validity-days {:optional true :default 30} [:int {:min 1}]]
-   [:np.contacts/configs {:optional true} [:vector #'ContactsConfig]]])
+   [:np/sources    [:map-of :keyword #'MessageSourceConfig]]
+   [:np/publishers [:map-of :keyword #'MessagePublisherConfig]]
+   ;; WIP TODO: WorkingPublishToConfig
+   [:np/publish-to [:vector #'PublishToConfig]]
+   [:np.contacts/configs [:vector #'ContactsConfig]]])
 
 (def WorkingUserRelation
   [:map

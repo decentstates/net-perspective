@@ -21,7 +21,8 @@
 ;; REVIEW: Need multiple ids per publication, or publications per id.
 
 
-(m/=> publish-to-config-ssh-key-id [:=> [:cat #'ps/PublishToConfig] #'ps/Identifier])
+;; TODO: Clean up this filled vs not filled issue
+(m/=> publish-to-config-ssh-key-id [:=> [:cat [:or #'ps/PublishToConfig #'ps/PublishToConfigFilled]] #'ps/Identifier])
 (defn publish-to-config-ssh-key-id [publish-to-config]
   (-> publish-to-config :ssh-key-id/public-key-path slurp ps/ssh-public-key->identifier-ssh))
 
@@ -179,79 +180,56 @@
       (verify-publication signed-publication))))
 
 
-(m/=> context-publication [:=> [:cat #'ps/WorkingContext #'ps/PublishToConfig] #'ps/Publication])
-(defn context-publication [working-context publish-to-config]
-  (let [
-        ;; TODO: Apply default in config:
-        valid-days ^int (or (get-in working-context [:config :np/publication-valid-days])
-                            30)
-        valid-from (Instant/now)
-        valid-until (.plus (Instant/now) ^int valid-days ChronoUnit/DAYS)
+(m/=> publishable-relations [:=> [:cat #'ps/Identifier #'ps/WorkingContext ] [:vector #'ps/Relation]])
+(defn publishable-relations [self-identifier working-context]
+  (let [{:keys [context relations]} working-context]
+    (into []
+          (comp
+            (filter
+              (fn [rel]
+                (and (not (keyword? (first (:relation/object-pair rel))))
+                     (:relation/public? rel))))
+            (map
+              (fn [rel] 
+                (assoc rel :relation/subject-pair [self-identifier context]))))
+          relations)))
 
-        self-identifier (publish-to-config-ssh-key-id publish-to-config)
-        context (:context working-context)
-        relations (mapv 
-                    #(assoc % :relation/subject-pair [self-identifier context])
-                    (:relations working-context))
-        relations (filterv
-                    (fn [rel]
-                      (not (keyword? (first (:relation/object-pair rel)))))
-                    relations)]
-    #:publication{:version :alpha-do-not-spread
-                  :valid-from valid-from
-                  :valid-until valid-until
-                  :self-identifier self-identifier
-                  :relations relations}))
+(defn publish-to-config-from [publish-to-config]
+  (str (:name publish-to-config) " <" (:email publish-to-config) ">"))
 
-(m/=> context-publication-message [:=> [:cat #'ps/WorkingContext #'ps/PublishToConfig #'ps/Publication]
-                                       #'ps/PublicationMessage])
-(defn context-publication-message [working-context publish-to-config publication]
-  (let [context
-        (ps/internal-context->context (:context working-context))
+(m/=> relations-publication [:=> [:cat #'ps/PublishToConfigFilled :time/instant [:vector #'ps/Relation]] #'ps/Publication])
+(defn relations-publication [publish-to-config ^Instant publish-instant relations]
+  (have! int? (:publication-validity-seconds publish-to-config))
+  #:publication{:from (publish-to-config-from publish-to-config)
+                :version :alpha-do-not-spread
+                :valid-from publish-instant
+                :valid-until (.plus 
+                               publish-instant 
+                               ^int (:publication-validity-seconds publish-to-config) 
+                               ChronoUnit/SECONDS)
+                :invalidates-previous-publications-from publish-instant
+                :self-identifier (publish-to-config-ssh-key-id publish-to-config)
+                :relations relations})
 
-        from
-        (str (:name publish-to-config) " <" (:email publish-to-config) ">")
+(m/=> publication-message [:=> [:cat #'ps/PublishToConfigFilled #'ps/Publication]
+                               #'ps/PublicationMessage])
+(defn publication-message [publish-to-config publication]
+  {:headers {:from (publish-to-config-from publish-to-config)
+             :subject "Publication"
+             :date (utils/instant->offset-date-time (:publication/valid-from publication))
+             :copyright (publish-to-config-from publish-to-config)
+             ;; TODO: Licensing setting, needs to be mandatory to upload to certain places...
+             :license "AGPL"
+             :x-np "net-perspective.org"
+             :x-np-client "prspct"
+             :x-np-id (publish-to-config-ssh-key-id publish-to-config)
+             :x-np-timestamp (:publication/valid-from publication)
+             :x-np-intent :publication}
+   :body publication})
 
-        id
-        (publish-to-config-ssh-key-id publish-to-config)
-
-        publication-timestamp
-        (:publication/valid-from publication)
-
-        signed-publication
-        (sign-publication publish-to-config publication)
-
-        publication-message
-        {:headers {:from from
-                   :subject (str "Publication: " context)
-                   :date (utils/instant->offset-date-time publication-timestamp)
-                   ;; TODO: is this possible?
-                   :copyright from
-                   :license "Not for commercial use."
-                   :x-np "net-perspective.org"
-                   :x-np-client "prspct"
-                   :x-np-id id
-                   :x-np-context context
-                   :x-np-timestamp publication-timestamp
-                   :x-np-intent :publication}
-         :body signed-publication}]
-    publication-message))
-
-(m/=> context-publication-message-envelope [:=> [:cat #'ps/WorkingContext #'ps/PublishToConfig] 
-                                                [:maybe #'ps/EDNMessageEnvelope]])
-(defn context-publication-message-envelope [working-context publish-to-config]
-  (let [publishers (get-in working-context [:config :np/publishers])
-        publisher (get publishers (:publisher publish-to-config))]
-    (if-not publisher 
-      nil
-      {:publisher 
-       publisher 
-
-       :message 
-       (context-publication-message 
-         working-context 
-         publish-to-config
-         (context-publication working-context publish-to-config))
-     
-       :message-schema
-       ps/PublicationMessage})))
+(m/=> publication-message-envelope [:=> [:cat #'ps/MessagePublisherConfig #'ps/PublicationMessage] 
+                                        [:maybe #'ps/EDNMessageEnvelope]])
+(defn publication-message-envelope [publisher publication-message]
+    {:publisher publisher
+     :message publication-message
+     :message-schema ps/PublicationMessage})
