@@ -714,6 +714,13 @@
 (def PublishToConfigFilled
   (mu/assoc PublishToConfig :publisher #'MessagePublisherConfig))
 
+(def PublishIdentity
+  [:map
+   [:name #'PublishToName]
+   [:email #'PublishToEmail]
+   [:ssh-key-id/public-key-path #'FilePath]
+   [:ssh-key-id/private-key-path #'FilePath]])
+
 (def UserObjectPair
   [:tuple #'UserConfigIdentifier #'InternalContext])
 
@@ -723,28 +730,70 @@
    [:relation/transitive? :boolean]
    [:relation/public? :boolean]])
 
+(def example-user-config-options
+  {:sources
+   {:underties {}}
+
+   :publishers
+   {:underties {}}
+
+   :publish-identities 
+   {:main-identity {:name "Alice"
+                    :email "alice@example.com"
+                    :ssh-key-id/public-key-path "/tmp/example-key-stub.pub"
+                    :ssh-key-id/private-key-path "/tmp/example-key-stub"}}
+
+   :publish-configs 
+   {:underties {:publisher :underties
+                :identity :main-identity}}
+   
+   :default-publish-configs [:underties]})
+   
+
+(def PublishConfig
+  [:map
+   [:publisher :keyword]
+   [:identity :keyword]
+   [:publication-validity-seconds {:optional true :default (* 60 60 24 7)} :int]]) 
 
 (def ContactsConfig
   [:map
    [:ctx :string]
    [:under-namespace [:or :keyword :string]]])
 
+(def UserConfigOptions
+  [:map
+   {:closed true}
+   [:sources    {:optional true} [:map-of :keyword #'MessageSourceConfig]]
+   [:publishers {:optional true} [:map-of :keyword #'MessagePublisherConfig]]
+   [:publish-identities {:optional true} [:map-of :keyword #'PublishIdentity]]
+   [:publish-configs {:optional true} [:map-of :keyword #'PublishConfig]]
+   ;; Remove
+   [:np.contacts/configs {:optional true} [:vector #'ContactsConfig]]
+   [:default-publish-configs {:optional true} [:vector :keyword]]])
+    
+
 (def UserContextConfig
   [:map
    {:closed true}
-   [:np/sources    {:optional true} [:map-of :keyword #'MessageSourceConfig]]
-   [:np/publishers {:optional true} [:map-of :keyword #'MessagePublisherConfig]]
-   [:np/publish-to {:optional true} [:vector #'PublishToConfig]]
-   [:np.contacts/configs {:optional true} [:vector #'ContactsConfig]]])
+   [:publish-configs {:optional true} [:vector :keyword]]])
+   ;; WIPTODO: Reroute usage to user-config-options
+   ; [:np/sources    {:optional true} [:map-of :keyword #'MessageSourceConfig]]
+   ; [:np/publishers {:optional true} [:map-of :keyword #'MessagePublisherConfig]]
+   ;; WIPTODO: Rewrite completely
+   ; [:np/publish-to {:optional true} [:vector #'PublishToConfig]]
+   ; [:np.contacts/configs {:optional true} [:vector #'ContactsConfig]]])
 
 (def UserContext
   [:map
    [:context #'InternalContext]
    [:relations [:vector #'UserRelation]]
+   ;; WIPTODO: Rename :config -> :context-config
    [:config #'UserContextConfig]])
 
 (def UserConfig 
   [:map
+   [:user-config-options #'UserConfigOptions]
    [:user-contexts [:vector #'UserContext]]])
 
 
@@ -757,6 +806,8 @@
   ;; TODO: Can simplify it further, by allowing references, path searches, structured external identifiers
   ;;       a big shared data structure.
   '[(ctx "#"
+         {:publish-to :underties
+          :publish-as :main-ident}
          {:np/sources {}
           :np/publishers {} ;;ctx-config
           :np/publish-to [{:publisher :blah

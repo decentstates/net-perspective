@@ -48,6 +48,7 @@
       :desc "Relative to the base dir."
       ::relative-to :base-dir}
 
+     ;; WIPTODO: Split into relations and config
      :user-config-path 
      {:default "./prspct.edn"
       :coerce :string
@@ -346,6 +347,8 @@
 
 
 (defn load-user-config [user-config-path]
+  ;; WIPTODO: user-config path 1
+  ;;          - Split into loading relations.edn and config.edn
   (let [user-config-text 
         (slurp user-config-path)
 
@@ -430,6 +433,7 @@
     (spit (str (fs/path (:prspct-dir opts) ".gitignore"))
           "*")
 
+    ;; WIPTODO: Split into relations.edn and config.edn
     (spit (:user-config-path opts) 
           (slurp (io/resource "prspct-init.edn")))
 

@@ -36,6 +36,7 @@
            (sut/resolve-config user-config [])
 
            expected
+           ;; WIPTODO: Here too, i think just need to move to config options
            {:working-contexts
             [{:context []
               :config

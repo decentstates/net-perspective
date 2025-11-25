@@ -122,6 +122,7 @@
 
 ;; ## User Context Transforms
 
+;; WIPTODO: Change config usage here...
 (defn user-context-transformation-contacts [resolved-contexts user-context]
   (let [{:np.contacts/keys [configs]} 
         (:config user-context)
@@ -246,6 +247,7 @@
         _ (tel/event! ::resolve-config:resolved-contexts-stage-0)
 
         ;; derived user-contexts:
+        ;; WIPTODO: use user-config-options in transformation-contacts
         user-contexts-transformed
         (mapv (partial user-context-transformation-contacts resolved-contexts-stage-0) user-contexts)
 

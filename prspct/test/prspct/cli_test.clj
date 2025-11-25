@@ -56,6 +56,7 @@
         (let [a-ident 
               (-> a-key-pair :public slurp ps/ssh-public-key->identifier-ssh)
 
+              ;; WIPTODO: Edit the configs here, need to add both relations.edn and config.edn
               a-prspct-edn 
               [(dsl/ctx "#" {:np/sources {:main 
                                           {:source/fn 'prspct.message-transfer/shell-source
@@ -185,6 +186,7 @@
       (utils/with-temp-dir [a-base-dir {:no-delete *no-delete-test-data*}
                             srv-dir {:no-delete *no-delete-test-data*}]
         (sut/-main "init" "--base-dir" a-base-dir)
+        ;; WIPTODO: Here too
         (let [a-prspct-edn 
               [(dsl/ctx "#" {:np/sources {:main 
                                           {:source/fn 'prspct.message-transfer/shell-source

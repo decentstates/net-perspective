@@ -42,6 +42,7 @@
                     [java.nio.file.StandardCopyOption/REPLACE_EXISTING])))))
 
 (defn fetch! [resolved-config current-fetch-link fetches-dir]
+  ;; WIPTODO: Change to user-config-options, maybe can just move it to resolved config, it should simplify things a lot
   (let [source-configs
         (into #{}
               (comp
@@ -87,6 +88,11 @@
   (let [publish-instant
         (java.time.Instant/now)
 
+        ;; WIPTODO: Can just group contexts by the publish-configs keys
+        ;; publish-config-keyword->working-contexts
+        ;; Will simplify this a lot
+        ;; And have:
+        ;; publish-config-keyword->publish-config
         publish-to->working-contexts
         (-> (group-by first
               (for [working-context    (:working-contexts resolved-config)
