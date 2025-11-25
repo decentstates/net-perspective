@@ -322,7 +322,7 @@
              (mett/time-transformer)))
 
 
-;; ## Net Perspective:
+;; ## net-perspective:
 
 ;; ### Identifiers:
 

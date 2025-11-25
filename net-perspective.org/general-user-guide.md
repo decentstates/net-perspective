@@ -129,8 +129,7 @@ your tasks:
 recommendations:
 - very simple sftp/ssh server
 - little to no durability or backups needed
-- follow the underties.net access above as a convention, using ssh-identifier,
-  #self.ssh-keys, #self.client-certs
+- follow the underties.net access above as a convention
 - use find+cron to ensure file-size/recency/quotas
 - generate `authorized_keys` from your perspective, can be used with
   client-certs and nginx to gate servers generally.

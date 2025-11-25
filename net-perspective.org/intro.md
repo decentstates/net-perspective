@@ -1,8 +1,8 @@
 
-# Net Perspective
+# net-perspective
 
 
-**defn:** Net Perspective
+**defn:** net-perspective
 *noun*
 
 An idea, a protocol, and a group to support the first two.
