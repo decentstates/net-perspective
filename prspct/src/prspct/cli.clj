@@ -352,7 +352,6 @@
         (throw e))))
 
 
-;; WIPTODO P2: Rename to user-context-relations?
 (defn load-user-relations [user-relations-path]
   (let [user-relations-text 
         (slurp user-relations-path)
@@ -378,16 +377,16 @@
         user-relations-dsl
         (try*
           (m/coerce 
-            #'ps/UserConfigDSL 
+            #'ps/UserRelationsDSL 
             user-relations-edn
             (mt/transformer {:name :file-path}))
           (catch :ex-info e
             (handle-file-coercion-error user-relations-path e)))
 
         _ (tel/event! ::load-user-relations:coerced-user-relations)]
-    (ps/user-config-dsl->user-config user-relations-dsl)))
+    (ps/user-relations-dsl->user-config user-relations-dsl)))
 
-;; WIPTODO P2: Rename user-config-options to something else
+;; TODO: Rename user-config-options to something else
 (defn load-user-config-options [user-config-options-path]
   (let [user-config-options-text 
         (slurp user-config-options-path)

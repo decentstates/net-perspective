@@ -30,7 +30,7 @@
 
           user-config 
           {:user-contexts
-           (ps/user-config-dsl->user-config dsl)
+           (ps/user-relations-dsl->user-config dsl)
            
            :user-config-options
            {:np.contacts/configs [{:ctx "#self.contacts"

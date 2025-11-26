@@ -820,11 +820,10 @@
          (->  "email:as@sdfasdfdf" "#nixos" :public)
          (->  "uri:http://asdf.com" "#null" :public))])
 
-;; WIPTODO P2: Rename UserConfigDSL -> UserRelationsDSL
-(def UserConfigDSLContextPart 
+(def UserRelationsDSLContextPart 
   [:re #"^#?(?:[a-z][a-z0-9\-]*\.?)*\*?\*?$"])
 
-(def UserConfigDSLRelationEntry
+(def UserRelationsDSLRelationEntry
   [:schema
    [:cat
     [:or [:= '->] [:= '->>]]
@@ -832,11 +831,11 @@
     #'Context
     [:? [:= :public]]]])
 
-(def UserConfigDSLContextEntry
+(def UserRelationsDSLContextEntry
   [:schema 
    {:registry 
     {::relation-dsl
-     #'UserConfigDSLRelationEntry
+     #'UserRelationsDSLRelationEntry
 
      ::context-dsl 
      [:schema
@@ -845,7 +844,7 @@
         [true
          [:cat 
           [:= 'ctx]
-          #'UserConfigDSLContextPart
+          #'UserRelationsDSLContextPart
           #'UserContextConfig
           [:* [:multi {:dispatch first}
                ['-> [:ref ::relation-dsl]]
@@ -854,16 +853,16 @@
         [false
          [:cat 
           [:= 'ctx]
-          #'UserConfigDSLContextPart
+          #'UserRelationsDSLContextPart
           [:* [:multi {:dispatch first}
                ['-> [:ref ::relation-dsl]]
                ['->> [:ref ::relation-dsl]]
                ['ctx [:ref ::context-dsl]]]]]]]]}}
    [:ref ::context-dsl]])
 
-(def UserConfigDSL
+(def UserRelationsDSL
   [:cat 
-   [:* [:alt [:and #'UserConfigDSLContextEntry
+   [:* [:alt [:and #'UserRelationsDSLContextEntry
                    [:cat 
                     [:= 'ctx]
                     [:re
@@ -871,16 +870,16 @@
                      #"^#.*$"]
                     [:* :any]]]]]])
 
-(defn parse-user-config-dsl-relation 
+(defn parse-user-relations-dsl-relation 
   ([transitivity object-identifier object-context]
-   (parse-user-config-dsl-relation transitivity object-identifier object-context :public))
+   (parse-user-relations-dsl-relation transitivity object-identifier object-context :public))
 
   ([transitivity object-identifier object-context public?]
    {:relation/object-pair [object-identifier (context->internal-context object-context)]
     :relation/transitive? (= '->> transitivity)
     :relation/public? (= :public public?)}))
 
-(defn parse-user-config-dsl-context [[_ context-part & more] parent-context parent-config]
+(defn parse-user-relations-dsl-context [[_ context-part & more] parent-context parent-config]
   (let [;; HACK: The schema coercion converts the lists into vectors, we convert them back into lists here.
         more
         (apply list more)
@@ -909,22 +908,21 @@
 
         this-ctx {:context (context->internal-context context-name)
                   :context-config context-config
-                  :relations (mapv (partial apply parse-user-config-dsl-relation) rel-children)}]
+                  :relations (mapv (partial apply parse-user-relations-dsl-relation) rel-children)}]
     (concat
       [this-ctx]
-      (vec (mapcat #(parse-user-config-dsl-context % context-name context-config)
+      (vec (mapcat #(parse-user-relations-dsl-context % context-name context-config)
                  ctx-children)))))
 
-;; WIPTODO P2: Rename to user-relations-dsl
-(defn user-config-dsl->user-config [user-config-dsl]
-  (let [root-ctx-forms (filterv #(= 'ctx (first %)) user-config-dsl)
+(defn user-relations-dsl->user-config [user-relations-dsl]
+  (let [root-ctx-forms (filterv #(= 'ctx (first %)) user-relations-dsl)
         
         parsed-contexts
-        (vec (mapcat #(parse-user-config-dsl-context % :root {}) root-ctx-forms))]
+        (vec (mapcat #(parse-user-relations-dsl-context % :root {}) root-ctx-forms))]
     (m/coerce [:vector #'UserContext] parsed-contexts)))
 
 (comment
-  (user-config-dsl->user-config example-user-config))
+  (user-relations-dsl->user-config example-user-config))
 
 
 ;; ## "Working" Configuration
