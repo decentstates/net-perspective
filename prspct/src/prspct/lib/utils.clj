@@ -119,4 +119,16 @@
     (pprint a)
     (pprint b)))
   
-
+(defn multigroup-by 
+  "Group by items in an array, if there are multiple items the element will be in more than one
+  group, returns a set. (f x) must return a sequential."
+  [f coll]
+  (as-> coll $
+    (into []
+          (mapcat 
+            (fn [x]
+              (mapv (fn [group-id] [group-id x])
+                    (have! sequential? (f x)))))
+          $)
+    (group-by first $)
+    (update-vals $ (fn [xs] (into #{} (map second) xs)))))

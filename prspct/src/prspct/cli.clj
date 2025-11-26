@@ -48,9 +48,14 @@
       :desc "Relative to the base dir."
       ::relative-to :base-dir}
 
-     ;; WIPTODO: Split into relations and config
-     :user-config-path 
-     {:default "./prspct.edn"
+     :user-relations-path 
+     {:default "./relations.edn"
+      :coerce :string
+      :desc "Relative to the base dir."
+      ::relative-to :base-dir}
+
+     :user-config-options-path 
+     {:default "./config.edn"
       :coerce :string
       :desc "Relative to the base dir."
       ::relative-to :base-dir}
@@ -265,7 +270,8 @@
       (print-help (:dispatch ctx))
       (handler ctx))))
 
-(defn- user-config-dsl-coercion-error [user-config-path e]
+;; TODO: Move this to middleware and apply to all coersion errors
+(defn- handle-file-coercion-error [file-path e]
     (let [ex-d (ex-data e)]
       (if (= (:type ex-d) ::m/coercion)
         (let [errors 
@@ -315,7 +321,7 @@
                               (fn [schema]
                                 (mu/update-properties schema dissoc :gen/fmap :gen/schema :gen/max :gen/min
                                                       :gen/return :gen/elements :gen/gen :gen/infinite? :gen/NaN?))))]
-                      (println "Validation Error:" (str user-config-path pos-str))
+                      (println "Validation Error:" (str file-path pos-str))
                       (println)
                       (println "Value:")
                       (pprint (:value error))
@@ -338,7 +344,7 @@
               instructions
               (str "\n" (str/join "\n-----------------\n\n" error-msgs))]
 
-          (ex-info! (str "Validation failed for user-config: " user-config-path)
+          (ex-info! (str "Validation failed: " file-path)
                     {::anom/category ::anom/incorrect
                      :instructions instructions}
                     e))
@@ -346,55 +352,87 @@
         (throw e))))
 
 
-(defn load-user-config [user-config-path]
-  ;; WIPTODO: user-config path 1
-  ;;          - Split into loading relations.edn and config.edn
-  (let [user-config-text 
-        (slurp user-config-path)
+;; WIPTODO P2: Rename to user-context-relations?
+(defn load-user-relations [user-relations-path]
+  (let [user-relations-text 
+        (slurp user-relations-path)
 
-        _ (tel/event! ::load-user-config:loaded-file)
+        _ (tel/event! ::load-user-relations:loaded-file)
 
-        user-config-edn 
+        user-relations-edn 
         (try*
-          (edamame/parse-string-all user-config-text)
+          (edamame/parse-string-all user-relations-text)
           (catch :ex-info e
             (let [ex-d (ex-data e)]
               (if (= (:type ex-d)
                      :edamame/error)
-                (ex-info! (str "Can't parse `" user-config-path "`") 
+                (ex-info! (str "Can't parse `" user-relations-path "`") 
                           (merge ex-d 
                                  {::anom/category ::anom/incorrect
                                   :instructions (ex-message e)}) 
                           e)
                 (throw e)))))
 
-        _ (tel/event! ::load-user-config:parsed-user-config)
+        _ (tel/event! ::load-user-relations:parsed-user-relations)
 
-        user-config-dsl
+        user-relations-dsl
         (try*
           (m/coerce 
             #'ps/UserConfigDSL 
-            user-config-edn
+            user-relations-edn
             (mt/transformer {:name :file-path}))
           (catch :ex-info e
-            (user-config-dsl-coercion-error user-config-path e)))
+            (handle-file-coercion-error user-relations-path e)))
 
-        _ (tel/event! ::load-user-config:coerced-user-config)]
+        _ (tel/event! ::load-user-relations:coerced-user-relations)]
+    (ps/user-config-dsl->user-config user-relations-dsl)))
 
-        
-    (ps/user-config-dsl->user-config user-config-dsl)))
+;; WIPTODO P2: Rename user-config-options to something else
+(defn load-user-config-options [user-config-options-path]
+  (let [user-config-options-text 
+        (slurp user-config-options-path)
 
-(defn middleware-user-config [handler]
-  (fn [ctx]
-    (let [opts (:opts ctx)]
-      (handler (merge ctx
-                      {:user-config  (load-user-config (:user-config-path opts))})))))
+        _ (tel/event! ::load-user-config-options:loaded-file)
+
+        user-config-options-edn 
+        (try*
+          (edamame/parse-string user-config-options-text)
+          (catch :ex-info e
+            (let [ex-d (ex-data e)]
+              (if (= (:type ex-d)
+                     :edamame/error)
+                (ex-info! (str "Can't parse `" user-config-options-path "`") 
+                          (merge ex-d 
+                                 {::anom/category ::anom/incorrect
+                                  :instructions (ex-message e)}) 
+                          e)
+                (throw e)))))
+
+        _ (tel/event! ::load-user-config-options:parsed-user-config-options)
+
+        user-config-options-dsl
+        (try*
+          (m/coerce 
+            #'ps/UserConfigOptions 
+            user-config-options-edn
+            (mt/transformer 
+              (mt/default-value-transformer {::mt/add-optional-keys true})
+              {:name :file-path}))
+          (catch :ex-info e
+            (handle-file-coercion-error user-config-options-path e)))
+
+        _ (tel/event! ::load-user-config-options:coerced-user-config-options)]
+      user-config-options-dsl))
 
 (defn middleware-resolve-config [handler]
   (fn [ctx]
     (tel/event! ::middleware-resolve-config)
     (let [opts (:opts ctx)
-          user-config (load-user-config (:user-config-path opts))
+          user-config {:user-contexts
+                       (load-user-relations (:user-relations-path opts))
+
+                       :user-config-options 
+                       (load-user-config-options (:user-config-options-path opts))}
           fetched-publication-messages (message-transfer/load-fetch (:fetch-head-symlink-path opts))
           resolved-config (resolution/resolve-config user-config fetched-publication-messages)]
       (tel/spy! :debug resolved-config)
@@ -433,9 +471,11 @@
     (spit (str (fs/path (:prspct-dir opts) ".gitignore"))
           "*")
 
-    ;; WIPTODO: Split into relations.edn and config.edn
-    (spit (:user-config-path opts) 
-          (slurp (io/resource "prspct-init.edn")))
+    (spit (:user-config-options-path opts) 
+          (slurp (io/resource "config-options-init.edn")))
+
+    (spit (:user-relations-path opts) 
+          (slurp (io/resource "relations-init.edn")))
 
     (let [fetch-0 (fs/path (:fetches-dir opts) "0")]
       (fs/create-dirs fetch-0)

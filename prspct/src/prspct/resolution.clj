@@ -122,10 +122,9 @@
 
 ;; ## User Context Transforms
 
-;; WIPTODO: Change config usage here...
-(defn user-context-transformation-contacts [resolved-contexts user-context]
+(defn user-context-transformation-contacts [user-config-options resolved-contexts user-context]
   (let [{:np.contacts/keys [configs]} 
-        (:config user-context)
+        user-config-options
 
         contexts (keys resolved-contexts)
         
@@ -200,7 +199,6 @@
 
         ;; TODO: Test message filtering
         ;; TODO: Move to it's own function
-
         message-filters
         [message-filter-valid-publication-message
          message-filter-valid-signature
@@ -247,9 +245,10 @@
         _ (tel/event! ::resolve-config:resolved-contexts-stage-0)
 
         ;; derived user-contexts:
-        ;; WIPTODO: use user-config-options in transformation-contacts
         user-contexts-transformed
-        (mapv (partial user-context-transformation-contacts resolved-contexts-stage-0) user-contexts)
+        (mapv (partial user-context-transformation-contacts 
+                       (:user-config-options user-config) 
+                       resolved-contexts-stage-0) user-contexts)
 
         _ (tel/event! ::resolve-config:derived-user-contexts)
 
@@ -259,7 +258,7 @@
 
         _ (tel/event! ::resolve-config:resolved-contexts-stage-1)]
 
-    {:publication-message-stats publication-message-stats
-     :initial-contexts user-contexts
+    {:user-config-options (:user-config-options user-config)
+     :publication-message-stats publication-message-stats
      :working-contexts user-contexts-transformed
      :resolved-contexts resolved-contexts-stage-1}))

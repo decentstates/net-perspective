@@ -22,9 +22,9 @@
 
 
 ;; TODO: Clean up this filled vs not filled issue
-(m/=> publish-to-config-ssh-key-id [:=> [:cat [:or #'ps/PublishToConfig #'ps/PublishToConfigFilled]] #'ps/Identifier])
-(defn publish-to-config-ssh-key-id [publish-to-config]
-  (-> publish-to-config :ssh-key-id/public-key-path slurp ps/ssh-public-key->identifier-ssh))
+(m/=> publish-identity->ssh-key-id [:=> [:cat #'ps/PublishIdentity] #'ps/Identifier])
+(defn publish-identity->ssh-key-id [publish-identity]
+  (-> publish-identity :ssh-key-id/public-key-path slurp ps/ssh-public-key->identifier-ssh))
 
 (def ssh-signature-namespace "net-perspective")
 
@@ -69,19 +69,19 @@
         (:public pair)))))
 
 ;; Very rough draft, based off of dkim
-(defn sign-publication [publish-to-config publication]
+(defn sign-publication [publish-identity publication]
   (have! #(not (contains? % :publication/signature)) publication)
   (let [publication-string 
         (ps/encode-edn-message-body #'ps/PublicationMessage publication)
         
         id
-        (publish-to-config-ssh-key-id publish-to-config)
+        (publish-identity->ssh-key-id publish-identity)
 
         hash
         (utils/sha256 publication-string)
     
         ssh-signature
-        (ssh-signature publication-string (-> publish-to-config :ssh-key-id/private-key-path))
+        (ssh-signature publication-string (-> publish-identity :ssh-key-id/private-key-path))
 
         publication-signature
         (m/coerce #'ps/PublicationSignature
@@ -180,7 +180,7 @@
       (verify-publication signed-publication))))
 
 
-(m/=> publishable-relations [:=> [:cat #'ps/Identifier #'ps/WorkingContext ] [:vector #'ps/Relation]])
+(m/=> publishable-relations [:=> [:cat #'ps/Identifier #'ps/WorkingContext] [:vector #'ps/Relation]])
 (defn publishable-relations [self-identifier working-context]
   (let [{:keys [context relations]} working-context]
     (into []
@@ -194,35 +194,36 @@
                 (assoc rel :relation/subject-pair [self-identifier context]))))
           relations)))
 
-(defn publish-to-config-from [publish-to-config]
-  (str (:name publish-to-config) " <" (:email publish-to-config) ">"))
+(defn publish-identity->from [publish-identity]
+  (str (:name publish-identity) " <" (:email publish-identity) ">"))
 
-(m/=> relations-publication [:=> [:cat #'ps/PublishToConfigFilled :time/instant [:vector #'ps/Relation]] #'ps/Publication])
-(defn relations-publication [publish-to-config ^Instant publish-instant relations]
-  (have! int? (:publication-validity-seconds publish-to-config))
-  #:publication{:from (publish-to-config-from publish-to-config)
+(m/=> relations-publication 
+      [:=> [:cat #'ps/PublishConfig #'ps/PublishIdentity :time/instant [:vector #'ps/Relation]]
+       #'ps/Publication])
+(defn relations-publication [publish-config publish-identity ^Instant publish-instant relations]
+  #:publication{:from (publish-identity->from publish-identity)
                 :version :alpha-do-not-spread
                 :valid-from publish-instant
                 :valid-until (.plus 
                                publish-instant 
-                               ^int (:publication-validity-seconds publish-to-config) 
+                               ^int (:publication-validity-seconds publish-config) 
                                ChronoUnit/SECONDS)
                 :invalidates-previous-publications-until publish-instant
-                :self-identifier (publish-to-config-ssh-key-id publish-to-config)
+                :self-identifier (publish-identity->ssh-key-id publish-identity)
                 :relations relations})
 
-(m/=> publication-message [:=> [:cat #'ps/PublishToConfigFilled #'ps/Publication]
+(m/=> publication-message [:=> [:cat #'ps/PublishIdentity #'ps/Publication]
                                #'ps/PublicationMessage])
-(defn publication-message [publish-to-config publication]
-  {:headers {:from (publish-to-config-from publish-to-config)
+(defn publication-message [publish-identity publication]
+  {:headers {:from (publish-identity->from publish-identity)
              :subject "Publication"
              :date (utils/instant->offset-date-time (:publication/valid-from publication))
-             :copyright (publish-to-config-from publish-to-config)
+             :copyright (publish-identity->from publish-identity)
              ;; TODO: Licensing setting, needs to be mandatory to upload to certain places...
              :license "AGPL"
              :x-np "net-perspective.org"
              :x-np-client "prspct"
-             :x-np-id (publish-to-config-ssh-key-id publish-to-config)
+             :x-np-id (publish-identity->ssh-key-id publish-identity)
              :x-np-timestamp (:publication/valid-from publication)
              :x-np-intent :publication}
    :body publication})

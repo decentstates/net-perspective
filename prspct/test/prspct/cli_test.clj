@@ -30,7 +30,8 @@
       (sut/-main "init" "--base-dir" base-dir)
       (is (= (sort (vec (map str (file-seq (fs/file base-dir)))))
              (sort [(str base-dir "")
-                    (str base-dir "/prspct.edn")
+                    (str base-dir "/relations.edn")
+                    (str base-dir "/config.edn")
                     (str base-dir "/.prspct")
                     (str base-dir "/.prspct/fetches")
                     (str base-dir "/.prspct/fetches/0")
@@ -50,32 +51,55 @@
                             b-base-dir {:no-delete *no-delete-test-data*}
                             c-base-dir {:no-delete *no-delete-test-data*}
                             srv-dir {:no-delete *no-delete-test-data*}] 
+        (when *no-delete-test-data*
+          (println 'a-key-pair (str a-key-pair))
+          (println 'a-base-dir (str a-base-dir))
+          (println 'b-key-pair (str b-key-pair))
+          (println 'b-base-dir (str b-base-dir))
+          (println 'c-key-pair (str c-key-pair))
+          (println 'c-base-dir (str c-base-dir))
+          (println 'srv-dir (str srv-dir)))
         (sut/-main "init" "--base-dir" a-base-dir)
         (sut/-main "init" "--base-dir" b-base-dir)
         (sut/-main "init" "--base-dir" c-base-dir)
         (let [a-ident 
               (-> a-key-pair :public slurp ps/ssh-public-key->identifier-ssh)
 
-              ;; WIPTODO: Edit the configs here, need to add both relations.edn and config.edn
-              a-prspct-edn 
-              [(dsl/ctx "#" {:np/sources {:main 
-                                          {:source/fn 'prspct.message-transfer/shell-source
-                                           :source/args
-                                           ["find" (str srv-dir) "-name" "*.eml" "-exec" "cp" "{}" :output-dir ";"]}}
+              a-config-options-edn
+              {:sources
+               {:main-source 
+                {:source/fn 'prspct.message-transfer/shell-source
+                 :source/args
+                 ["find" (str srv-dir) "-name" "*.eml" "-exec" "cp" "{}" :output-dir ";"]}}
 
-                             :np/publishers {:main
-                                             {:publisher/fn 
-                                              'prspct.message-transfer/shell-publisher
-                                              :publisher/args 
-                                              ["find" :input-dir "-name" "*.eml" "-exec" "cp" "{}" (str srv-dir) ";"]}}
-                             :np/publish-to [{:publisher :main
-                                              :name "Alice"
-                                              :email "alice@example.com"
-                                              :ssh-key-id/public-key-path (:public a-key-pair)
-                                              :ssh-key-id/private-key-path (:private a-key-pair)}]
-                              :np.contacts/configs [{:ctx "#contacts" 
-                                                     :under-namespace :contacts}]}
+               :publishers
+               {:main-publisher
+                {:publisher/fn 
+                  'prspct.message-transfer/shell-publisher
+                  :publisher/args 
+                  ["find" :input-dir "-name" "*.eml" "-exec" "cp" "{}" (str srv-dir) ";"]}}
 
+               :publish-identities 
+               {:main-identity
+                {:name "Alice"
+                 :email "alice@example.com"
+                 :ssh-key-id/public-key-path (:public a-key-pair)
+                 :ssh-key-id/private-key-path (:private a-key-pair)}}
+
+               :publish-configs 
+               {:main-config
+                {:identity :main-identity
+                 :publisher :main-publisher}}
+
+               :default-publish-configs 
+               [:main-config]
+
+               :np.contacts/configs
+               [{:ctx "#contacts" 
+                 :under-namespace :contacts}]}
+
+              a-relations-edn 
+              [(dsl/ctx "#" 
                         (dsl/ctx "net-perspective"
                                  (dsl/-> "uri:net-perspective.org" "#net-perspective.*" :public)
                                  (dsl/-> "email:admin@net-perspective.org" "#net-perspective.*" :public))
@@ -84,24 +108,16 @@
                         (dsl/ctx "net-perspective.*"
                                  (dsl/->> "email:admin@net-perspective.org" "#net-perspective.*" :public)))]
 
-              b-prspct-edn 
-              [(dsl/ctx "#" {:np/sources {:main 
-                                          {:source/fn 'prspct.message-transfer/shell-source
-                                           :source/args
-                                           ["find" (str srv-dir) "-name" "*.eml" "-exec" "cp" "{}" :output-dir ";"]}}
-
-                             :np/publishers {:main
-                                             {:publisher/fn 
-                                              'prspct.message-transfer/shell-publisher
-                                              :publisher/args 
-                                              ["find" :input-dir "-name" "*.eml" "-exec" "cp" "{}" (str srv-dir) ";"]}}
-                             :np/publish-to [{:publisher :main
-                                              :name "Bob"
-                                              :email "bob@example.com"
-                                              :ssh-key-id/public-key-path (:public b-key-pair)
-                                              :ssh-key-id/private-key-path (:private b-key-pair)}]
-                              :np.contacts/configs [{:ctx "#contacts" 
-                                                     :under-namespace :contacts}]}
+              b-config-options-edn
+              (assoc-in a-config-options-edn
+                        [:publish-identities :main-identity]
+                        {:name "Bob"
+                         :email "bob@example.com"
+                         :ssh-key-id/public-key-path (:public b-key-pair)
+                         :ssh-key-id/private-key-path (:private b-key-pair)})
+                        
+              b-relations-edn 
+              [(dsl/ctx "#" 
                         (dsl/ctx "contacts"
                                  (dsl/ctx "alice"
                                           (dsl/->> a-ident "#self")))
@@ -109,34 +125,32 @@
                         (dsl/ctx "net-perspective.*"
                                  (dsl/-> :contacts/alice "#net-perspective.*" :public)))]
 
-              c-prspct-edn 
-              [(dsl/ctx "#" {:np/sources {:main 
-                                          {:source/fn 'prspct.message-transfer/shell-source
-                                           :source/args
-                                           ["find" (str srv-dir) "-name" "*.eml" "-exec" "cp" "{}" :output-dir ";"]}}
-
-                             :np/publishers {:main
-                                             {:publisher/fn 
-                                              'prspct.message-transfer/shell-publisher
-                                              :publisher/args 
-                                              ["find" :input-dir "-name" "*.eml" "-exec" "cp" "{}" (str srv-dir) ";"]}}
-                             :np/publish-to [{:publisher :main
-                                              :name "Charlie"
-                                              :email "charlie@example.com"
-                                              :ssh-key-id/public-key-path (:public c-key-pair)
-                                              :ssh-key-id/private-key-path (:private c-key-pair)}]
-                              :np.contacts/configs [{:ctx "#contacts" 
-                                                     :under-namespace :contacts}]}
-
+              c-config-options-edn
+              (assoc-in a-config-options-edn
+                        [:publish-identities :main-identity]
+                        {:name "Charlie"
+                         :email "charlie@example.com"
+                         :ssh-key-id/public-key-path (:public c-key-pair)
+                         :ssh-key-id/private-key-path (:private c-key-pair)})
+                        
+              c-relations-edn 
+              [(dsl/ctx "#" 
                         (dsl/ctx "contacts"
                                  (dsl/ctx "alice"
                                           (dsl/->> a-ident "#self")))
 
                         (dsl/ctx "net-perspective.*"
                                  (dsl/->> :contacts/alice "#net-perspective.*" :public)))]]
-          (dsl/write-config (str a-base-dir "/prspct.edn") a-prspct-edn)
-          (dsl/write-config (str b-base-dir "/prspct.edn") b-prspct-edn)
-          (dsl/write-config (str c-base-dir "/prspct.edn") c-prspct-edn)
+
+          (dsl/write-contexts (str a-base-dir "/relations.edn") a-relations-edn)
+          (dsl/write-config (str a-base-dir "/config.edn") a-config-options-edn)
+
+          (dsl/write-contexts (str b-base-dir "/relations.edn") b-relations-edn)
+          (dsl/write-config (str b-base-dir "/config.edn") b-config-options-edn)
+
+          (dsl/write-contexts (str c-base-dir "/relations.edn") c-relations-edn)
+          (dsl/write-config (str c-base-dir "/config.edn") c-config-options-edn)
+
           (sut/-main "publish" "--base-dir" a-base-dir)
           (sut/-main "fetch" "--base-dir" b-base-dir)
           (sut/-main "fetch" "--base-dir" c-base-dir)
@@ -185,30 +199,48 @@
     (utils/with-temp-key-pairs [a-key-pair {:no-delete *no-delete-test-data*}]
       (utils/with-temp-dir [a-base-dir {:no-delete *no-delete-test-data*}
                             srv-dir {:no-delete *no-delete-test-data*}]
+        (when *no-delete-test-data*
+          (println 'a-key-pair (str a-key-pair))
+          (println 'a-base-dir (str a-base-dir))
+          (println 'srv-dir (str srv-dir)))
         (sut/-main "init" "--base-dir" a-base-dir)
-        ;; WIPTODO: Here too
-        (let [a-prspct-edn 
-              [(dsl/ctx "#" {:np/sources {:main 
-                                          {:source/fn 'prspct.message-transfer/shell-source
-                                           :source/args
-                                           ["find" (str srv-dir) "-name" "*.eml" "-exec" "cp" "{}" :output-dir ";"]}
+        (let [a-config-options-edn
+              {:sources
+               {:main 
+                {:source/fn 'prspct.message-transfer/shell-source
+                 :source/args
+                 ["find" (str srv-dir) "-name" "*.eml" "-exec" "cp" "{}" :output-dir ";"]}
 
-                                          :bad
-                                          {:source/fn 'prspct.message-transfer/shell-source
-                                           :source/args
-                                           ["false" "find" (str srv-dir) "-name" "*.eml" "-exec" "cp" "{}" :output-dir ";"]}}
+                :bad
+                {:source/fn 'prspct.message-transfer/shell-source
+                 :source/args
+                 ["false" "find" (str srv-dir) "-name" "*.eml" "-exec" "cp" "{}" :output-dir ";"]}}
 
-                             :np/publishers {:main
-                                             {:publisher/fn 
-                                              'prspct.message-transfer/shell-publisher
-                                              :publisher/args 
-                                              ["find" :input-dir "-name" "*.eml" "-exec" "cp" "{}" (str srv-dir) ";"]}}
-                             :np/publish-to [{:publisher :main
-                                              :name "Alice"
-                                              :email "alice@example.com"
-                                              :ssh-key-id/public-key-path (:public a-key-pair)
-                                              :ssh-key-id/private-key-path (:private a-key-pair)}]
-                             :np.contacts/configs []}
+               :publishers
+               {:main-publisher
+                {:publisher/fn 
+                 'prspct.message-transfer/shell-publisher
+                 :publisher/args 
+                 ["find" :input-dir "-name" "*.eml" "-exec" "cp" "{}" (str srv-dir) ";"]}}
+
+               :publish-identities 
+               {:main-identity
+                {:name "Alice"
+                 :email "alice@example.com"
+                 :ssh-key-id/public-key-path (:public a-key-pair)
+                 :ssh-key-id/private-key-path (:private a-key-pair)}}
+
+               :publish-configs 
+               {:main-publish-config
+                {:identity :main-identity
+                 :publisher :main-publisher}}
+
+               :default-publish-configs [:main-publish-config]
+
+               :np.contacts/configs []}
+
+              a-relations-edn 
+              [(dsl/ctx "#" 
 
                         (dsl/ctx "net-perspective" {}
                                  (dsl/-> "uri:net-perspective.org" "#net-perspective.*" :public)
@@ -217,7 +249,8 @@
                                  (dsl/->> "uri:feed:https://net-perspective.org/feed.atom" "#net-perspective.announcements" :public))
                         (dsl/ctx "net-perspective.*" {}
                                  (dsl/->> "email:admin@net-perspective.org" "#net-perspective.*" :public)))]]
-          (dsl/write-config (str a-base-dir "/prspct.edn") a-prspct-edn)
+          (dsl/write-contexts (str a-base-dir "/relations.edn") a-relations-edn)
+          (dsl/write-config (str a-base-dir "/config.edn") a-config-options-edn)
           (let [out-map
                 (prspct.test-utils/with-out-data-map
                   (sut/-main "fetch" "--base-dir" a-base-dir))]

@@ -20,13 +20,8 @@
     [prspct.publication :as publication]
     [prspct.relation-graph :as rel-graph]
     [prspct.resolution :as resolution]
-    [prspct.schemas :as ps])
-  (:import
-    java.time.Instant
-    java.io.File
-    java.nio.file.Files
-    java.nio.file.StandardCopyOption
-    java.nio.file.CopyOption)
+    [prspct.schemas :as ps]
+    [prspct.lib.utils :as utils])
   (:gen-class))
 
 (defn swap-link! [link-path dst]
@@ -42,16 +37,8 @@
                     [java.nio.file.StandardCopyOption/REPLACE_EXISTING])))))
 
 (defn fetch! [resolved-config current-fetch-link fetches-dir]
-  ;; WIPTODO: Change to user-config-options, maybe can just move it to resolved config, it should simplify things a lot
   (let [source-configs
-        (into #{}
-              (comp
-                (map :config)
-                (map :np/sources)
-                (map vals)
-                cat
-                (filter identity))
-              (:working-contexts resolved-config))
+        (set (vals (get-in resolved-config [:user-config-options :sources])))
 
         fetch-output-dir
         (str (fs/canonicalize (fs/path fetches-dir (str (System/currentTimeMillis)))))
@@ -88,26 +75,35 @@
   (let [publish-instant
         (java.time.Instant/now)
 
-        ;; WIPTODO: Can just group contexts by the publish-configs keys
-        ;; publish-config-keyword->working-contexts
-        ;; Will simplify this a lot
-        ;; And have:
-        ;; publish-config-keyword->publish-config
-        publish-to->working-contexts
-        (-> (group-by first
-              (for [working-context    (:working-contexts resolved-config)
-                    publish-to-config (get-in working-context [:config :np/publish-to])]
-                (let [publisher (get-in working-context [:config :np/publishers (:publisher publish-to-config)])
-                      publish-to-config (assoc publish-to-config :publisher (have! publisher))]
-                  [publish-to-config working-context])))
-            (update-vals (fn [xs] (into #{} (map second) xs))))
+        publish-config-keyword->working-contexts
+        (utils/multigroup-by 
+          (fn [working-context]
+            (or
+              (get-in working-context 
+                      [:context-config :publish-configs])
+              (get-in resolved-config 
+                      [:user-config-options :default-publish-configs]
+                      [])))
+          (:working-contexts resolved-config))
 
         envelopes
         (into []
           (comp
-            (map (fn [[publish-to-config working-contexts]]
-                   (let [self-identifier
-                         (publication/publish-to-config-ssh-key-id publish-to-config)
+            (map (fn [[publish-config-keyword working-contexts]]
+                   (let [publish-config
+                         (get-in resolved-config
+                                 [:user-config-options :publish-configs publish-config-keyword])
+
+                         publish-identity
+                         (get-in resolved-config
+                                 [:user-config-options :publish-identities (:identity publish-config)])
+                         
+                         publisher
+                         (get-in resolved-config
+                                 [:user-config-options :publishers (:publisher publish-config)])
+                         
+                         self-identifier
+                         (publication/publish-identity->ssh-key-id publish-identity)
 
                          relations
                          (into []
@@ -117,12 +113,15 @@
                                working-contexts)]
                      (when relations
                        (->> relations
-                            (publication/relations-publication publish-to-config publish-instant)
-                            (publication/sign-publication publish-to-config)
-                            (publication/publication-message publish-to-config)
-                            (publication/publication-message-envelope (:publisher publish-to-config)))))))
+                            (publication/relations-publication 
+                              publish-config 
+                              publish-identity 
+                              publish-instant)
+                            (publication/sign-publication publish-identity)
+                            (publication/publication-message publish-identity)
+                            (publication/publication-message-envelope publisher))))))
             (filter identity))
-          publish-to->working-contexts)
+          publish-config-keyword->working-contexts)
 
         _ (tel/event! ::publish!:produced-envelopes)
 

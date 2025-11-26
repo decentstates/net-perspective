@@ -730,24 +730,26 @@
    [:relation/transitive? :boolean]
    [:relation/public? :boolean]])
 
+
 (def example-user-config-options
   {:sources
-   {:underties {}}
+   {}
 
    :publishers
-   {:underties {}}
+   {}
 
    :publish-identities 
-   {:main-identity {:name "Alice"
-                    :email "alice@example.com"
-                    :ssh-key-id/public-key-path "/tmp/example-key-stub.pub"
-                    :ssh-key-id/private-key-path "/tmp/example-key-stub"}}
+   {}
 
    :publish-configs 
-   {:underties {:publisher :underties
-                :identity :main-identity}}
-   
-   :default-publish-configs [:underties]})
+   {}
+
+   :default-publish-configs 
+   []
+
+   :np.contacts/config 
+   [{:ctx "#self.contacts" 
+     :under-namespace :contacts}]}) 
    
 
 (def PublishConfig
@@ -764,32 +766,24 @@
 (def UserConfigOptions
   [:map
    {:closed true}
-   [:sources    {:optional true} [:map-of :keyword #'MessageSourceConfig]]
-   [:publishers {:optional true} [:map-of :keyword #'MessagePublisherConfig]]
-   [:publish-identities {:optional true} [:map-of :keyword #'PublishIdentity]]
-   [:publish-configs {:optional true} [:map-of :keyword #'PublishConfig]]
+   [:sources                 [:map-of :keyword #'MessageSourceConfig]]
+   [:publishers              [:map-of :keyword #'MessagePublisherConfig]]
+   [:publish-identities      [:map-of :keyword #'PublishIdentity]]
+   [:publish-configs         [:map-of :keyword #'PublishConfig]]
+   [:default-publish-configs [:vector :keyword]]
    ;; Remove
-   [:np.contacts/configs {:optional true} [:vector #'ContactsConfig]]
-   [:default-publish-configs {:optional true} [:vector :keyword]]])
-    
+   [:np.contacts/configs {:optional true} [:vector #'ContactsConfig]]])
 
 (def UserContextConfig
   [:map
    {:closed true}
    [:publish-configs {:optional true} [:vector :keyword]]])
-   ;; WIPTODO: Reroute usage to user-config-options
-   ; [:np/sources    {:optional true} [:map-of :keyword #'MessageSourceConfig]]
-   ; [:np/publishers {:optional true} [:map-of :keyword #'MessagePublisherConfig]]
-   ;; WIPTODO: Rewrite completely
-   ; [:np/publish-to {:optional true} [:vector #'PublishToConfig]]
-   ; [:np.contacts/configs {:optional true} [:vector #'ContactsConfig]]])
 
 (def UserContext
   [:map
    [:context #'InternalContext]
    [:relations [:vector #'UserRelation]]
-   ;; WIPTODO: Rename :config -> :context-config
-   [:config #'UserContextConfig]])
+   [:context-config #'UserContextConfig]])
 
 (def UserConfig 
   [:map
@@ -799,48 +793,34 @@
 
 ;; ### Hacky User Config DSL
 
-(def example-user-config
+(def example-user-relations-dsl
   "The idea is less syntax for easier editing but still edn."
 
   ;; TODO: # or #. or even empty string?
   ;; TODO: Can simplify it further, by allowing references, path searches, structured external identifiers
   ;;       a big shared data structure.
-  '[(ctx "#"
-         {:publish-to :underties
-          :publish-as :main-ident}
-         {:np/sources {}
-          :np/publishers {} ;;ctx-config
-          :np/publish-to [{:publisher :blah
-                           :name  "Alice"
-                           :email "alice@example.com"
-                           :ssh-key-id/public-key-path "/tmp/example-key-stub"
-                           :ssh-key-id/private-key-path "/tmp/example-key-stub.pub"}]
-          :np.app.news/sources {}
-          :np.app.news/publishers {}
-          :np.app.news/publish-to {}
-          :np.contacts/config [{:ctx "#self.contacts" 
-                                :under-namespace :contacts}]} 
-         (ctx "self" {}
-              (ctx "contacts" {}
-                   ;; I want this to work like file paths, but also don't want
-                   ;; to have to have two lines... maybe a special syntax
-                   ;; d+ d.?* d* d->...
-                   (-> "email:bob@gmail.com" "#self.contacts.*" :public)
-                   (ctx "d"
-                        (->> "email:fabian@whatever" "#self" :public)
-                        (-> "email:fabian@2" "#self" :public))
-                   (ctx "d.*"
-                        (-> "email:asdf@asdf" "#self.*" :public))))
-         (ctx "underties" {:np.app.underties-server.nix-config-output-path "server.nix"
-                                     :np.app.underties-server.nixos-deploy "hostname"}
-              (-> :contacts/d "#underties" :public)
-              (-> :contacts/f "#underties" :public))
-         (ctx "comp.sys.nix" {}
-              (->> :contacts/d "#comp.sys.nix" :public)
-              (->>  "email:asdfd@fsdf" "#nix" :public)
-              (->  "email:as@sdfasdfdf" "#nixos" :public)
-              (->  "uri:http://asdf.com" "#null" :public)))])
+  '[(ctx "#self.contacts"
+         ;; I want this to work like file paths, but also don't want
+         ;; to have to have two lines... maybe a special syntax
+         ;; d+ d.?* d* d->...
+         (-> "email:bob@gmail.com" "#self.contacts.*" :public)
 
+         (ctx "d"
+              (->> "email:fabian@whatever" "#self" :public)
+              (-> "email:fabian@2" "#self" :public))
+         (ctx "d.*"
+              (-> "email:asdf@asdf" "#self.*" :public)))
+    (ctx "#underties" {:np.app.underties-server.nix-config-output-path "server.nix"
+                       :np.app.underties-server.nixos-deploy "hostname"}
+         (-> :contacts/d "#underties" :public)
+         (-> :contacts/f "#underties" :public))
+    (ctx "#comp.sys.nix"
+         (->> :contacts/d "#comp.sys.nix" :public)
+         (->>  "email:asdfd@fsdf" "#nix" :public)
+         (->  "email:as@sdfasdfdf" "#nixos" :public)
+         (->  "uri:http://asdf.com" "#null" :public))])
+
+;; WIPTODO P2: Rename UserConfigDSL -> UserRelationsDSL
 (def UserConfigDSLContextPart 
   [:re #"^#?(?:[a-z][a-z0-9\-]*\.?)*\*?\*?$"])
 
@@ -928,19 +908,20 @@
                          (mt/default-value-transformer {::mt/add-optional-keys true}))
 
         this-ctx {:context (context->internal-context context-name)
-                  :config context-config
+                  :context-config context-config
                   :relations (mapv (partial apply parse-user-config-dsl-relation) rel-children)}]
     (concat
       [this-ctx]
       (vec (mapcat #(parse-user-config-dsl-context % context-name context-config)
                  ctx-children)))))
 
+;; WIPTODO P2: Rename to user-relations-dsl
 (defn user-config-dsl->user-config [user-config-dsl]
   (let [root-ctx-forms (filterv #(= 'ctx (first %)) user-config-dsl)
         
         parsed-contexts
         (vec (mapcat #(parse-user-config-dsl-context % :root {}) root-ctx-forms))]
-    (m/coerce #'UserConfig {:user-contexts parsed-contexts})))
+    (m/coerce [:vector #'UserContext] parsed-contexts)))
 
 (comment
   (user-config-dsl->user-config example-user-config))
@@ -953,11 +934,7 @@
 (def WorkingContextConfig
   [:map
    {:closed true}
-   [:np/sources    [:map-of :keyword #'MessageSourceConfig]]
-   [:np/publishers [:map-of :keyword #'MessagePublisherConfig]]
-   ;; WIP TODO: WorkingPublishToConfig
-   [:np/publish-to [:vector #'PublishToConfig]]
-   [:np.contacts/configs [:vector #'ContactsConfig]]])
+   [:publish-configs {:optional true} [:vector :keyword]]])
 
 (def WorkingUserRelation
   [:map
@@ -970,7 +947,7 @@
   [:map
    [:context #'InternalContext]
    [:relations [:vector #'WorkingUserRelation]]
-   [:config #'WorkingContextConfig]])
+   [:context-config #'WorkingContextConfig]])
 
 (def WorkingContextResolution
   [:set #'WorkingUserRelation])
@@ -980,6 +957,7 @@
   
 (def WorkingConfig
   [:map
+   [:user-config-options #'UserConfigOptions]
    [:working-contexts [:vector #'WorkingContext]]
    [:resolved-contexts #'ResolvedContexts]])
 

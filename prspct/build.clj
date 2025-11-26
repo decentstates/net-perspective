@@ -1,6 +1,7 @@
 (ns build
   (:refer-clojure :exclude [test])
   (:require 
+    [clojure.pprint :refer [pprint]]
     [clojure.java.shell :as shell]
     [clojure.tools.build.api :as b])
   (:import
@@ -41,7 +42,8 @@
                       "--initialize-at-build-time=java.time.Instant"
                       "-classpath" (java.lang.System/getProperty "java.class.path")
                       "-H:IncludeResources=.*build-info.edn"
-                      "-H:IncludeResources=.*prspct-init.edn")]
+                      "-H:IncludeResources=.*config-options-init.edn"
+                      "-H:IncludeResources=.*relations-init.edn")]
     (print (:out ret))
     (print (:err ret)))
   opts)

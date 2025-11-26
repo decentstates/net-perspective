@@ -1,3 +1,4 @@
+;; TODO: This should be prspct.lib.utils-test
 (ns prspct.utils-test
   (:require 
     [clojure.pprint :refer [pprint]]
@@ -21,7 +22,6 @@
 
 
 (prspct.test-utils/deftest-ns-schemas-test)
-
 
 (def sha256-test-vectors
   #^{:doc "test vectors from the NESSIE project (http://is.gd/jdM99e)"}
@@ -54,3 +54,16 @@
   (doseq [test-vec sha256-fail-vectors]
     (is (not= {:expected test-vec}
               (sut/sha256 (:message test-vec))))))
+
+(deftest multigroup-by-test
+  (is (=
+       {1 #{{:ids [1 2]} {:ids [1]} {:ids [1 2 3]}},
+        2 #{{:ids [1 2]} {:ids [2]} {:ids [1 2 3]} {:ids [2 3]}},
+        3 #{{:ids [3]} {:ids [1 2 3]} {:ids [2 3]}}}
+       (sut/multigroup-by :ids
+                          [{:ids [1 2 3]}
+                           {:ids [1 2]}
+                           {:ids [1]}
+                           {:ids [2 3]}
+                           {:ids [2]}
+                           {:ids [3]}]))))
