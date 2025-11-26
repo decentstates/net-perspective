@@ -3,6 +3,7 @@
     [clojure.java.io :as io]
     [clojure.pprint :refer [pprint]]
     [clojure.string :as str]
+    [clojure.set :as set]
     [clojure.stacktrace]
     [clojure.walk]
 
@@ -40,7 +41,8 @@
      :base-dir 
      {:desc "Relative to the cwd."
       :default "./"
-      :coerce :string}
+      :coerce :string
+      ::relative-to :cwd}
 
      :prspct-dir
      {:default "./.prspct"
@@ -103,6 +105,33 @@
       :default false
       :coerce :boolean})})
 
+(def non-common-cli-spec
+  {:spec
+   (sorted-map
+     :build-target
+     {:desc (->> (methods user-commands/build!) keys (map name) sort (str/join ", "))
+       :coerce keyword
+       :defalt :edn
+       :requid true}
+
+      ;; TODO: Rename this var...
+     :context-ref
+     {:desc "The context to use to build"
+      :coerce :string
+      :default "#**"
+      :required true}
+
+     :publications-output-dir
+     {:desc "Path to output publications to."
+      :coerce :string
+      :default :edn
+      :required true
+      ::relative-to :cwd})})
+
+;; Option keys must be unique:
+(have! empty? (set/intersection (set (keys (:spec common-cli-spec)))
+                                (set (keys (:spec non-common-cli-spec)))))
+
 (declare dispatch-table) 
 
 (defn middleware-normalize-paths [handler]
@@ -110,13 +139,12 @@
     (let [opts
           (:opts ctx)
 
-          ;; resolve base-dir
-          opts
-          (update opts :base-dir (comp str fs/canonicalize))
+          specs (merge (:spec common-cli-spec)
+                       (:spec non-common-cli-spec))
 
           resolve-opt-pair 
           (fn [opts [k v]]
-            (let [spec (get-in common-cli-spec [:spec k])
+            (let [spec (get specs k)
                   relative-to (::relative-to spec)
                   relative? (and relative-to (fs/relative? v))
                   v' (if relative?
@@ -126,9 +154,19 @@
 
           relative-to?
           (fn [[k _v] relative-to]
-            (let [spec (get-in common-cli-spec [:spec k])]
+            (let [spec (get specs k)]
               (= (::relative-to spec)
                  relative-to)))
+
+          ;; resolve relative-to cwd
+          opts
+          (into 
+            {}
+            (map (fn [[k v :as opt-pair]]
+                   (if (relative-to? opt-pair :cwd)
+                     [k (str (fs/canonicalize v))]
+                     opt-pair)))
+            opts)
 
           ;; resolve relative-to base-dir
           opts
@@ -493,6 +531,7 @@
       ::usage "init"
       :fn (wrap-middlewares init!
                             [common-middlewares])}
+
      {:cmds ["fetch"]
       ::desc "Fetch from sources listed in prspct.edn"
       ::usage "fetch"
@@ -502,6 +541,18 @@
                                                     (:fetches-dir opts)))
                             [common-middlewares
                              middleware-resolve-config])}
+
+     {:cmds ["publications"]
+      ::desc "Write publications to files, useful for debugging."
+      ::usage "publish"
+      :fn (wrap-middlewares (fn [{:keys [opts resolved-config]}]
+                              (let [{:keys [publications-output-dir]} opts]
+                                (user-commands/publications! resolved-config publications-output-dir)))
+                            [common-middlewares
+                             middleware-resolve-config])
+      ::cmd-spec (select-keys (:spec non-common-cli-spec) [:publications-output-dir])
+      :args->opts [:publications-output-dir]}
+      
      {:cmds ["publish"]
       ::desc "Publish to publishers as per prspct.edn"
       ::usage "publish"
@@ -509,35 +560,28 @@
                               (user-commands/publish! resolved-config))
                             [common-middlewares
                              middleware-resolve-config])}
+
      {:cmds ["build"]
       ::desc "Build a target perspective."
       ::usage "build target [context-ref] [extra opts]"
       :fn (wrap-middlewares (fn [{:keys [opts resolved-config]}]
-                              (let [{:keys [target context-ref]} opts
-                                    output (user-commands/build! target context-ref resolved-config)
+                              (let [{:keys [build-target context-ref]} opts
+                                    output (user-commands/build! build-target context-ref resolved-config)
                                     serialize-fn (:serialize-fn (meta output))]
                                 (print (serialize-fn output))
                                 output))
                             [common-middlewares
                              middleware-resolve-config])
-      ::cmd-spec {:target
-                  {:desc (->> (methods user-commands/build!) keys (map name) sort (str/join ", "))
-                   :coerce :keyword
-                   :default :edn
-                   :required true}
+      ::cmd-spec 
+      (select-keys (:spec non-common-cli-spec) [:build-target :context-ref])
       
-                  ;; TODO: Rename this var...
-                  :context-ref
-                  {:desc "The context to use to build"
-                   :coerce :string
-                   :default "#**"
-                   :required true}}
-      :validate {:target (->> (methods user-commands/build!) keys set)
+      :validate {:build-target (->> (methods user-commands/build!) keys set)
                  :context-ref {:pred (m/validator #'ps/Context)
                                :ex-msg (fn [m] 
                                          (str "Invalid value for option :context-ref: " (:value m) "\n"
                                               "Should be e.g.: #**, #food.deep-fried, #plant.herbs.*"))}}
-      :args->opts [:target :context-ref]}
+      :args->opts [:build-target :context-ref]}
+
      {:cmds []
       :fn (wrap-middlewares identity
                             [common-middlewares])
@@ -550,10 +594,15 @@
     (flush)
     ret))
 
+
+(defn run [command-line-args]
+  (apply -main (str/split command-line-args #" ")))
+
 (comment
   (tel/with-min-level :debug
     (-main "init" "--print-options"))
-  *e
 
-  (-main "build" "flat-ssh-keys" "#underties" "--base-dir" "/home/ds/perspects/ds@underties")
+  (-main "build" "flat-ssh-keys" "#underties" "--base-dir" "/home/ds/perspects/ds@underties" "--log-level" "info")
+  (run "fetch --base-dir /home/ds/perspects/ds@underties")
+  (run "publications /tmp/publications --base-dir /home/ds/perspects/ds@underties")
   (-main "--print-build-info"))

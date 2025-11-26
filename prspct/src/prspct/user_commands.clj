@@ -71,7 +71,7 @@
                    (println (str "rm '" current-fetch-link "' && ln -s '" previous-fetch-head "' '" current-fetch-link "' ;")))}))))
 
 
-(defn publish! [resolved-config]
+(defn envelopes [resolved-config]
   (let [publish-instant
         (java.time.Instant/now)
 
@@ -88,40 +88,51 @@
 
         envelopes
         (into []
-          (comp
-            (map (fn [[publish-config-keyword working-contexts]]
-                   (let [publish-config
-                         (get-in resolved-config
-                                 [:user-config-options :publish-configs publish-config-keyword])
+              (comp
+                (map (fn [[publish-config-keyword working-contexts]]
+                       (let [publish-config
+                             (get-in resolved-config
+                                     [:user-config-options :publish-configs publish-config-keyword])
 
-                         publish-identity
-                         (get-in resolved-config
-                                 [:user-config-options :publish-identities (:identity publish-config)])
-                         
-                         publisher
-                         (get-in resolved-config
-                                 [:user-config-options :publishers (:publisher publish-config)])
-                         
-                         self-identifier
-                         (publication/publish-identity->ssh-key-id publish-identity)
+                             publish-identity
+                             (get-in resolved-config
+                                     [:user-config-options :publish-identities (:identity publish-config)])
 
-                         relations
-                         (into []
-                               (comp
-                                 (mapcat (partial publication/publishable-relations self-identifier))
-                                 (distinct))
-                               working-contexts)]
-                     (when relations
-                       (->> relations
-                            (publication/relations-publication 
-                              publish-config 
-                              publish-identity 
-                              publish-instant)
-                            (publication/sign-publication publish-identity)
-                            (publication/publication-message publish-identity)
-                            (publication/publication-message-envelope publisher))))))
-            (filter identity))
-          publish-config-keyword->working-contexts)
+                             publisher
+                             (get-in resolved-config
+                                     [:user-config-options :publishers (:publisher publish-config)])
+
+                             self-identifier
+                             (publication/publish-identity->ssh-key-id publish-identity)
+
+                             relations
+                             (into []
+                                   (comp
+                                     (mapcat (partial publication/publishable-relations self-identifier))
+                                     (distinct))
+                                   working-contexts)]
+                         (when relations
+                           (->> relations
+                                (publication/relations-publication 
+                                  publish-config 
+                                  publish-identity 
+                                  publish-instant)
+                                (publication/sign-publication publish-identity)
+                                (publication/publication-message publish-identity)
+                                (publication/publication-message-envelope publisher))))))
+                (filter identity))
+              publish-config-keyword->working-contexts)]
+    envelopes))
+
+(defn publications! [resolved-config publications-output-dir]
+  (let [envelopes (envelopes resolved-config)]
+    (tel/event! ::publications!:produced-envelopes)
+    (message-transfer/write-edn-message-envelopes! envelopes publications-output-dir)
+    (tel/event! ::publications!:wrote-envelopes)))
+
+(defn publish! [resolved-config]
+  (let [envelopes
+        (envelopes resolved-config)
 
         _ (tel/event! ::publish!:produced-envelopes)
 
