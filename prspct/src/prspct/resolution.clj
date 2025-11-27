@@ -156,7 +156,7 @@
   (let [initial-self-rels 
         (into [] 
              (mapcat (fn [{:keys [context relations]}]
-                       (mapv #(assoc % :relation/subject-pair [::self context])
+                       (mapv #(assoc % :relation/subject-pair [:self context])
                              relations)))
              user-contexts)
 
@@ -178,7 +178,7 @@
 
         resolved-self-rels
         (filterv (fn [rel] (= (first (:relation/subject-pair rel))
-                              ::self))
+                              :self))
                 all-rels)
 
         resolved-contexts
