@@ -165,24 +165,9 @@
         _ (tel/event! ::resolve-contexts:resolved-contexts)]
     resolved-contexts))
 
-;; TODO: Move to schemas
-(defn is-include-ident? [ident]
-  (and (qualified-keyword? ident)
-       (= "<" (namespace ident))))
-
-(defn include-ident->internal-context [ident]
-  (have is-include-ident? ident)
-  (str/split (name ident) #"\." -1))
-
-(defn is-include-ident-rel? [rel]
-  (-> rel :relation/object-pair first is-include-ident?))
-
-(defn include-ident-rel->internal-context [rel]
-  (-> rel :relation/object-pair first include-ident->internal-context))
-
 (defn resolve-include-ident-rel [resolved-contexts rel]
   (let [context-to-include
-        (include-ident-rel->internal-context rel)
+        (ps/include-ident-rel->internal-context rel)
 
         identities-to-include
         (mapv first (get resolved-contexts context-to-include))
@@ -199,7 +184,7 @@
        (update user-context :relations 
                (fn [relations]
                  (let [include-relations 
-                       (filterv is-include-ident-rel? relations)
+                       (filterv ps/is-include-ident-rel? relations)
                        
                        includes
                        (mapv (partial resolve-include-ident-rel resolved-contexts) include-relations)]

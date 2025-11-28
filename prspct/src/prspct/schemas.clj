@@ -1,8 +1,11 @@
 (ns prspct.schemas
   (:require
     [clojure.string :as str]
+    [clojure.set :as set]
     [clojure.math :as math]
     [clojure.pprint :refer [pprint]]
+
+    [cognitect.anomalies :as anom]
 
     [taoensso.telemere :as tel]
     [taoensso.truss :refer [have have! have!? have? ex-info!]]
@@ -689,6 +692,24 @@
        :keyword
        :qualified-keyword])
 
+(defn is-include-ident? [ident]
+  (and (qualified-keyword? ident)
+       (= "<" (namespace ident))))
+
+(defn include-ident->internal-context [ident]
+  (have is-include-ident? ident)
+  (str/split (name ident) #"\." -1))
+
+(defn internal-context->include-ident [internal-context]
+  (have! not-empty internal-context)
+  (keyword "<" (str/join "." internal-context)))
+
+(defn is-include-ident-rel? [rel]
+  (-> rel :relation/object-pair first is-include-ident?))
+
+(defn include-ident-rel->internal-context [rel]
+  (-> rel :relation/object-pair first include-ident->internal-context))
+
 
 (defn expand-home [s]
   (if (str/starts-with? s "~")
@@ -868,6 +889,7 @@
     :relation/transitive? (= '->> transitivity)
     :relation/public? (= :public public?)}))
 
+;; TODO: Pass through metadata
 (defn parse-user-relations-dsl-context [[_ context-part & more] parent-context parent-config]
   (let [;; HACK: The schema coercion converts the lists into vectors, we convert them back into lists here.
         more
@@ -907,8 +929,41 @@
   (let [root-ctx-forms (filterv #(= 'ctx (first %)) user-relations-dsl)
         
         parsed-contexts
-        (vec (mapcat #(parse-user-relations-dsl-context % :root {}) root-ctx-forms))]
-    (m/coerce [:vector #'UserContext] parsed-contexts)))
+        (vec (mapcat #(parse-user-relations-dsl-context % :root {}) root-ctx-forms))
+
+        user-config
+        (m/coerce [:vector #'UserContext] parsed-contexts)
+
+        contexts
+        (set (mapv :context user-config))
+        
+        include-idents-internal-contexts
+        (into #{}
+              (comp
+                (mapcat :relations)
+                (filter is-include-ident-rel?)
+                (map include-ident-rel->internal-context))
+              user-config)
+
+        include-idents-not-matching
+        (mapv
+          internal-context->include-ident
+          (set/difference include-idents-internal-contexts contexts))]
+
+    (when (not-empty include-idents-not-matching)
+      (ex-info! (str "Could not find matching contexts for include identifiers:\n"
+                     (with-out-str
+                      (doseq [x include-idents-not-matching]
+                        (println (str "    " x)))))
+                {::anom/category ::anom/incorrect
+                 :include-idents-not-matching include-idents-not-matching
+                 :instructions 
+                 (with-out-str
+                   (println "Fix or remove the include identifier `:</context.name`.")
+                   (println "`context.name` must match a defined `(ctx \"#context.name\" ...)`") 
+                   (println "Perhaps you have a typo or renamed a context?"))}))
+
+    user-config))
 
 (comment
   (user-relations-dsl->user-config example-user-config))
