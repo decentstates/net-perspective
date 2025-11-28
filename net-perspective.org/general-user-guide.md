@@ -27,11 +27,6 @@ follow mailing list etiquette:
 https://man.sr.ht/lists.sr.ht/etiquette.md
 
 
-want to submit a bug or a patch?
-
-you must submit a contributors agreement before submitting code
-
-
 ## warnings:
 
 - not safe for secret, political or otherwise sentitive intentions.
@@ -41,15 +36,15 @@ if you don't understand why these are listed as limitations, you should
 definitely be following them.
 
 - things can get messy, but i believe this is better than status quo
-- the most important thing is trusting the people close to you
+- you should care about your direct relations
 
 
 ## privacy
 
 - know that this service is pseudo-anonymous at best
-- use tor or a proxy service
-- use separate keys to what you use elsewhere
-- for the paranoid, use separate private keys and identifiers per context
+- for more than minimal privacy, use tor or a proxy
+- your keys are your identifier, use separate keys if your don't want them associated
+- for the paranoid, use separate identifiers per context
 
 
 ## underties 
@@ -60,7 +55,7 @@ perspective rules:
 - context: `#underties`, no mapping allowed.
 - eligibility: human, decent, technical, non-commercial intentions
 - relates (->): know someone in person before relating to them.
-- super-relates (->>): observe and trust them before superrelating
+- transitive-relates (->>): observe and trust them before transitively relating to them
 - unrelates: you are expected to unrelate to someone breaking the rules, if not
   you are breaking the rules and others will be expected to unrelate to you.
   just the way it's got to go.
@@ -94,11 +89,11 @@ messages rules:
 
 ## contexts
 
-- follow usenet contexts for inspiration, they provide a nice baseline of categories
 - don't be too afraid with your contexts, someone else can always remap
 - try not to remove contexts, rather mark as deprecated (TODO), and redirect a
   new context to your old context
 - you can also search for who relates to your context and let them know
+- avoid deep nesting, stick to one, two and in rare cases three levels deep.
 
 
 ## demo applications
