@@ -218,18 +218,19 @@
                 {:data {:i i}})
     (cond
       (= previous-resolved-contexts resolved-contexts)
-      (do (tel/event! ::resolve-contexts-with-includes:found-fixed-point)
+      (do (tel/event! ::resolve-contexts-with-includes:fixed-point-found)
           [user-contexts resolved-contexts])
 
       (<= max-iterations (inc i))
-      (do (tel/event! ::resolve-contexts-with-includes:hit-max-iterations)
+      (do (tel/event! ::resolve-contexts-with-includes:fixed-point-hit-max-iterations
+                      :warn)
           [user-contexts resolved-contexts])
 
       :else
       (let [new-user-contexts (user-context-with-include-rels user-contexts resolved-contexts)]
         (recur (inc i)
                new-user-contexts
-               resolve-contexts
+               resolved-contexts
                (resolve-contexts new-user-contexts fetched-rels))))))
 
 (m/=> resolve-config [:=> [:cat #'ps/UserConfig [:seqable #'ps/AnyMessage]] #'ps/WorkingConfig])
