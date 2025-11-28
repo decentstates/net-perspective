@@ -36,7 +36,7 @@
           "-n" ssh-signature-namespace 
           "-f" private-key-path
           :in s)]
-    (utils/assert-sh-ret ret)
+    (utils/assert-sh-ret ret "publication-signing")
     (:out ret)))
 
 (defn verify-ssh-signature [s signature public-key]

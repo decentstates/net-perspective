@@ -80,10 +80,11 @@
         ret (apply shell/sh args)]
     (assoc ret :args args)))
 
-(defn assert-sh-ret [ret]
+(defn assert-sh-ret [ret purpose]
   (when (not= 0 (:exit ret))
-    (ex-info! "ssh-keygen command failed"
+    (ex-info! (str purpose ": ssh-keygen command failed")
               {::anom/category ::anom/fault
+               :instructions (:err ret)
                :ret ret})))
 
 (defmacro with-temp-key-pairs
