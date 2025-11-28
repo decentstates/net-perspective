@@ -80,6 +80,12 @@
       :desc "Relative to the prspct dir."
       ::relative-to :prspct-dir}
 
+     :last-publish-info-path
+     {:default "./last-publish-info.edn"
+      :coerce :string
+      :desc "Relative to the prspct dir."
+      ::relative-to :prspct-dir}
+
      :log-level
      {:desc "trace, debug, info, warn, error, fatal"
       :coerce :keyword
@@ -558,8 +564,9 @@
      {:cmds ["publish"]
       ::desc "Publish to publishers as per prspct.edn"
       ::usage "publish"
-      :fn (wrap-middlewares (fn [{:keys [resolved-config]}]
-                              (user-commands/publish! resolved-config))
+      :fn (wrap-middlewares (fn [{:keys [resolved-config opts]}]
+                              (let [{:keys [last-publish-info-path]} opts]
+                                (user-commands/publish! resolved-config last-publish-info-path)))
                             [common-middlewares
                              middleware-resolve-config])}
 

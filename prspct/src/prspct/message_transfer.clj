@@ -61,6 +61,7 @@
 
 ;; ## Implementations
 
+;; TODO: Add error code
 (defn- shell-transfer [args]
   (try
     (let [res (apply shell/sh args)]

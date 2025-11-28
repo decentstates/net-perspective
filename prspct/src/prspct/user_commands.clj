@@ -66,6 +66,30 @@
                  :fetch-info fetch-info
                  :instructions
                  (with-out-str
+                   (println
+                     (str/join 
+                       "\n"
+                       (into []
+                             (comp
+                               (filter (fn [[_source fetch-info-source]]
+                                         (-> fetch-info-source :fetch-info-source/success? not)))
+                               (map (fn [[source fetch-info-source]]
+                                      (with-out-str
+                                        (println "---------------------------")
+                                        (println "Source:")
+                                        (pprint source)
+                                        (println)
+                                        (println "out:")
+                                        (println 
+                                          (-> fetch-info-source 
+                                              :fetch-info-source/transfer-result
+                                              :transfer-result/out))
+                                        (println "err:")
+                                        (println 
+                                          (-> fetch-info-source 
+                                              :fetch-info-source/transfer-result
+                                              :transfer-result/err))))))
+                             (:fetch-info/sources fetch-info))))
                    (println (str "See `" current-fetch-link "/fetch-info.edn` for more info."))
                    (println "To revert run:")
                    (println (str "rm '" current-fetch-link "' && ln -s '" previous-fetch-head "' '" current-fetch-link "' ;")))}))))
@@ -130,7 +154,7 @@
     (message-transfer/write-edn-message-envelopes! envelopes publications-output-dir)
     (tel/event! ::publications!:wrote-envelopes)))
 
-(defn publish! [resolved-config]
+(defn publish! [resolved-config last-publish-info-path]
   (let [envelopes
         (envelopes resolved-config)
 
@@ -148,11 +172,42 @@
         (every? :publish-info-publisher/success? (-> publish-info :publish-info/publishers vals))]
 
       (tel/spy! :debug publish-info)
+      (spit last-publish-info-path 
+            (with-out-str (pprint publish-info)))
       (when-not overall-success
         (ex-info! "Unsuccessful publish, failed to publish to some or all publishers."
                   {::anom/category ::anom/unavailable
-                   :publish-info publish-info}))))
-                   
+                   :publish-info publish-info
+
+                   :instructions
+                   (with-out-str
+                     (println
+                       (str/join "\n"
+                         (into []
+                               (comp
+                                 (filter (fn [[_publisher publish-info-publisher]]
+                                           (-> publish-info-publisher :publish-info-publisher/success? not)))
+                                 (map (fn [[publisher publish-info-publisher]]
+                                        (with-out-str
+                                          (println "---------------------------")
+                                          (println "Publisher:")
+                                          (pprint publisher)
+                                          (println)
+                                          (println "out:")
+                                          (println 
+                                            (-> publish-info-publisher 
+                                                :publish-info-publisher/transfer-result
+                                                :transfer-result/out))
+                                          (println "err:")
+                                          (println 
+                                            (-> publish-info-publisher 
+                                                :publish-info-publisher/transfer-result
+                                                :transfer-result/err))))))
+                               (:publish-info/publishers publish-info))))
+                     (println "---------------------------")
+                     (println)
+                     (println (str "See `" last-publish-info-path "` for more info.")))}))))
+                    
 
 (defmulti build! (fn [target context-ref resolved-config] target))
 
