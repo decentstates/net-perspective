@@ -20,4 +20,7 @@
  :publish-configs
  {:underties
   {:publisher :underties
-   :identity :main-identity}}}
+   :identity :main-identity}}
+
+ :default-publish-configs
+ [:underties]}
