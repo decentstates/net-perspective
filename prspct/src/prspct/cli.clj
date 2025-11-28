@@ -90,8 +90,8 @@
       :default false
       :coerce :boolean}
 
-     :print-options
-     {:desc "Print options set instead of running command."
+     :print-cli-options
+     {:desc "Print cli options and context instead of running command."
       :default false
       :coerce :boolean}
 
@@ -245,9 +245,9 @@
           (tel/spy! :debug log-level)
           (handler ctx))))))
 
-(defn middleware-print-options [handler]
+(defn middleware-print-cli-options [handler]
   (fn [ctx]
-    (if (get-in ctx [:opts :print-options])
+    (if (get-in ctx [:opts :print-cli-options])
       (do
         (pprint ctx)
         (flush))
@@ -485,7 +485,7 @@
     middleware-eventer
     middleware-exception-handling
     middleware-help
-    middleware-print-options
+    middleware-print-cli-options
     middleware-print-build-info
     middleware-version
     middleware-normalize-paths))
@@ -600,9 +600,10 @@
 
 (comment
   (tel/with-min-level :debug
-    (-main "init" "--print-options"))
+    (-main "init" "--print-cli-options"))
 
   (-main "build" "flat-ssh-keys" "#underties" "--base-dir" "/home/ds/perspects/ds@underties" "--log-level" "info")
   (run "fetch --base-dir /home/ds/perspects/ds@underties")
   (run "publications /tmp/publications --base-dir /home/ds/perspects/ds@underties")
-  (-main "--print-build-info"))
+  (-main "--print-build-info")
+  (-main))
