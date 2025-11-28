@@ -124,7 +124,7 @@
      :publications-output-dir
      {:desc "Path to output publications to."
       :coerce :string
-      :default :edn
+      :default "./publications/"
       :required true
       ::relative-to :cwd})})
 
