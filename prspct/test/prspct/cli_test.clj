@@ -96,8 +96,10 @@
 
               a-relations-edn 
               [(dsl/ctx "#" 
+                        (dsl/ctx "private"
+                                 (dsl/->> "uri:http://some-private.example.com/" "#null"))
                         (dsl/ctx "net-perspective"
-                                 (dsl/-> "uri:net-perspective.org" "#net-perspective.*" :public)
+                                 (dsl/-> "uri:https://net-perspective.org" "#net-perspective.*" :public)
                                  (dsl/-> "email:admin@net-perspective.org" "#net-perspective.*" :public))
                         (dsl/ctx "net-perspective.announcements"
                                  (dsl/->> "uri:feed:https://net-perspective.org/feed.atom" "#net-perspective.announcements" :public))
@@ -114,6 +116,8 @@
                         
               b-relations-edn 
               [(dsl/ctx "#" 
+                        (dsl/ctx "a-private"
+                                 (dsl/->> :</contacts.alice "#private"))
                         (dsl/ctx "contacts"
                                  (dsl/ctx "alice"
                                           (dsl/->> a-ident "#self")))
@@ -151,9 +155,12 @@
           (sut/-main "fetch" "--base-dir" b-base-dir)
           (sut/-main "fetch" "--base-dir" c-base-dir)
           (with-out-str
-            (is (= {["net-perspective"]
+            (is (= {["private"]
+                    #{["uri:http://some-private.example.com/" ["null"]]}
+                    
+                    ["net-perspective"]
                     #{["email:admin@net-perspective.org" ["net-perspective" "*"]]
-                      ["uri:net-perspective.org" ["net-perspective" "*"]]}
+                      ["uri:https://net-perspective.org" ["net-perspective" "*"]]}
 
                     ["net-perspective" "*"]
                     #{["email:admin@net-perspective.org" ["net-perspective" "*"]]}
@@ -161,7 +168,8 @@
                     ["net-perspective" "announcements"]
                     #{["uri:feed:https://net-perspective.org/feed.atom" ["net-perspective" "announcements"]]}}
                    (sut/-main "build" "edn" "#**" "--base-dir" a-base-dir)))
-            (is (= #{"net-perspective.org"
+            (is (= #{"http://some-private.example.com/" 
+                     "https://net-perspective.org"
                      "feed:https://net-perspective.org/feed.atom"}
                    (sut/-main "build" "flat-uris" "#**" "--base-dir" a-base-dir))) 
             (is (= #{}
@@ -170,6 +178,10 @@
                    (sut/-main "build" "flat-emails" "#net-perspective" "--base-dir" a-base-dir))) 
             (is (= {["contacts" "alice"]
                     #{[a-ident ["self"]]}
+
+                    ["a-private"]
+                    #{[:</contacts.alice ["private"]]
+                      [a-ident ["private"]]}
                     
                     ["net-perspective" "*"]
                     #{[:</contacts.alice ["net-perspective" "*"]]
@@ -190,6 +202,7 @@
                     #{[a-ident ["net-perspective" "announcements"]]
                       ["uri:feed:https://net-perspective.org/feed.atom" ["net-perspective" "announcements"]]}}
                    (sut/-main "build" "edn" "#**" "--base-dir" c-base-dir))))))))
+            ;; TODO: Search the entire srv-dir for the private url 
 
   (testing "command failure"
     (utils/with-temp-key-pairs [a-key-pair {:no-delete *no-delete-test-data*}]
