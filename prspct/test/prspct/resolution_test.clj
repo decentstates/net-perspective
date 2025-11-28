@@ -24,11 +24,11 @@
           '[(ctx "#" 
                  (ctx "self.contacts" 
                       (ctx "d" 
-                           (-> "email:d@test.com" "#self")))
+                           (-> "email:d@test.com" "#self" :public)))
                  (ctx "food" 
-                      (-> "uri:geo:37.786971,-122.399677" "#null"))
+                      (-> "uri:geo:37.786971,-122.399677" "#null" :public))
                  (ctx "friends" 
-                      (-> :</self.contacts.d "#null")))]
+                      (-> :</self.contacts.d "#null" :public)))]
 
           user-config 
           {:user-contexts

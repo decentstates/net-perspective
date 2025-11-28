@@ -191,7 +191,7 @@
                    (vec (distinct (apply concat relations includes)))))))
     user-contexts))
 
-(m/=> resolve-contexts-with-includes [:=> [:cat [:vector #'ps/UserContext] [:vector #'ps/Relation]] 
+(m/=> resolve-contexts-with-includes [:=> [:cat [:vector #'ps/UserContext] [:vector #'ps/Relation] :int] 
                                          [:tuple [:vector #'ps/WorkingContext] #'ps/ResolvedContexts]])
 (defn resolve-contexts-with-includes [user-contexts fetched-rels max-iterations]
   ;; Fixed point resolution of includes.
