@@ -101,7 +101,8 @@
       :coerce :boolean}
 
      :help
-     {:desc "Display this help."
+     {:alias :h
+      :desc "Display this help."
       :default false
       :coerce :boolean})})
 
@@ -269,8 +270,9 @@
         (flush))
       (handler ctx))))
 
-(defn print-help [dispatch]
-  (let [help
+(defn print-help [ctx]
+  (let [dispatch (:dispatch ctx)
+        help
         (with-out-str
           (if-let [dispatch-spec (and
                                    (not-empty dispatch)
@@ -305,7 +307,7 @@
 (defn middleware-help [handler]
   (fn [ctx]
     (if (get-in ctx [:opts :help])
-      (print-help (:dispatch ctx))
+      (print-help ctx)
       (handler ctx))))
 
 ;; TODO: Move this to middleware and apply to all coersion errors
@@ -583,10 +585,8 @@
       :args->opts [:build-target :context-ref]}
 
      {:cmds []
-      :fn (wrap-middlewares identity
-                            [common-middlewares])
-      :opts {:help true}
-      :spec (:spec common-cli-spec)}]))
+      :fn (wrap-middlewares print-help
+                            [common-middlewares])}]))
 
 (defn -main [& args]
   (tel/event! ::-main :trace)
