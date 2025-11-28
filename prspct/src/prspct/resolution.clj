@@ -3,6 +3,7 @@
    [clojure.string :as str]
 
    [taoensso.telemere :as tel]
+   [taoensso.truss :refer [have have! have!? have? ex-info!]]
 
    [malli.core :as m]
 
@@ -120,34 +121,7 @@
     publication-message))
 
 
-;; ## User Context Transforms
-
-(defn user-context-transformation-contacts [user-config-options resolved-contexts user-context]
-  (let [{:np.contacts/keys [configs]} 
-        user-config-options
-
-        contexts (keys resolved-contexts)
-        
-        contact-kw->contact-ids
-        (into {} 
-          (for [{:keys [ctx under-namespace]} configs
-                :let [parsed-ctx (ps/context->internal-context ctx)
-                      matching-contexts (filterv (partial ctx-child? parsed-ctx) contexts)]
-                matching-context matching-contexts
-                :let [contact-name (last matching-context)
-                      context-rels (get resolved-contexts matching-context)
-                      context-ids (mapv first context-rels)]]
-            [(keyword (name under-namespace) contact-name) context-ids]))
-        
-        contact-rels
-        (mapcat
-          (fn [rel]
-            (let [{:relation/keys [object-pair]} rel
-                  [id ctx] object-pair]
-              (for [matched-contact-id (contact-kw->contact-ids id)]
-                (assoc rel :relation/object-pair [matched-contact-id ctx]))))
-          (:relations user-context))]
-    (update user-context :relations into contact-rels)))
+;; Resolution
 
 (m/=> resolve-contexts [:=> [:cat [:vector #'ps/UserContext] [:vector #'ps/Relation]] 
                             #'ps/ResolvedContexts])
@@ -190,6 +164,73 @@
 
         _ (tel/event! ::resolve-contexts:resolved-contexts)]
     resolved-contexts))
+
+;; TODO: Move to schemas
+(defn is-include-ident? [ident]
+  (and (qualified-keyword? ident)
+       (= "<" (namespace ident))))
+
+(defn include-ident->internal-context [ident]
+  (have is-include-ident? ident)
+  (str/split (name ident) #"\." -1))
+
+(defn is-include-ident-rel? [rel]
+  (-> rel :relation/object-pair first is-include-ident?))
+
+(defn include-ident-rel->internal-context [rel]
+  (-> rel :relation/object-pair first include-ident->internal-context))
+
+(defn resolve-include-ident-rel [resolved-contexts rel]
+  (let [context-to-include
+        (include-ident-rel->internal-context rel)
+
+        identities-to-include
+        (mapv first (get resolved-contexts context-to-include))
+
+        obj-context
+        (second (:relation/object-pair rel))]
+    (mapv 
+      #(assoc rel :relation/object-pair [% obj-context])
+      identities-to-include)))
+
+(defn user-context-with-include-rels [user-contexts resolved-contexts]
+  (mapv
+    (fn [user-context]
+       (update user-context :relations 
+               (fn [relations]
+                 (let [include-relations 
+                       (filterv is-include-ident-rel? relations)
+                       
+                       includes
+                       (mapv (partial resolve-include-ident-rel resolved-contexts) include-relations)]
+                   (vec (distinct (apply concat relations includes)))))))
+    user-contexts))
+
+(m/=> resolve-contexts-with-includes [:=> [:cat [:vector #'ps/UserContext] [:vector #'ps/Relation]] 
+                                         [:tuple [:vector #'ps/WorkingContext] #'ps/ResolvedContexts]])
+(defn resolve-contexts-with-includes [user-contexts fetched-rels max-iterations]
+  ;; Fixed point resolution of includes.
+  (loop [i 0
+         user-contexts user-contexts
+         previous-resolved-contexts nil
+         resolved-contexts (resolve-contexts user-contexts fetched-rels)]
+    (tel/event! ::resolve-contexts-with-includes:iteration-start
+                {:data {:i i}})
+    (cond
+      (= previous-resolved-contexts resolved-contexts)
+      (do (tel/event! ::resolve-contexts-with-includes:found-fixed-point)
+          [user-contexts resolved-contexts])
+
+      (<= max-iterations (inc i))
+      (do (tel/event! ::resolve-contexts-with-includes:hit-max-iterations)
+          [user-contexts resolved-contexts])
+
+      :else
+      (let [new-user-contexts (user-context-with-include-rels user-contexts resolved-contexts)]
+        (recur (inc i)
+               new-user-contexts
+               resolve-contexts
+               (resolve-contexts new-user-contexts fetched-rels))))))
 
 (m/=> resolve-config [:=> [:cat #'ps/UserConfig [:seqable #'ps/AnyMessage]] #'ps/WorkingConfig])
 (defn resolve-config [user-config fetched-publication-messages]
@@ -235,30 +276,15 @@
         user-contexts 
         (:user-contexts user-config)
 
-        ;; stage 0:
         fetched-rels 
         (into [] (mapcat #(get-in % [:body :publication/relations]) passed-publication-messages))
 
-        resolved-contexts-stage-0 
-        (resolve-contexts user-contexts fetched-rels)
+        [working-contexts resolved-contexts]
+        ;; WIPTODO: Get max iterations from config-options
+        (resolve-contexts-with-includes user-contexts fetched-rels 10)
 
-        _ (tel/event! ::resolve-config:resolved-contexts-stage-0)
-
-        ;; derived user-contexts:
-        user-contexts-transformed
-        (mapv (partial user-context-transformation-contacts 
-                       (:user-config-options user-config) 
-                       resolved-contexts-stage-0) user-contexts)
-
-        _ (tel/event! ::resolve-config:derived-user-contexts)
-
-        ;; stage 1:
-        resolved-contexts-stage-1 
-        (resolve-contexts user-contexts-transformed fetched-rels)
-
-        _ (tel/event! ::resolve-config:resolved-contexts-stage-1)]
-
+        _ (tel/event! ::resolve-config:resolved-contexts)]
     {:user-config-options (:user-config-options user-config)
      :publication-message-stats publication-message-stats
-     :working-contexts user-contexts-transformed
-     :resolved-contexts resolved-contexts-stage-1}))
+     :working-contexts working-contexts
+     :resolved-contexts resolved-contexts}))

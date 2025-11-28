@@ -12,16 +12,12 @@
 
  :publish-identities
  {:main-identity
-  {:name "<YOUR_NAME>"
-   :email "<YOUR_EMAIL>"
-   :ssh-key-id/public-key-path "<PATH_TO_YOUR_PUBLIC_KEY>"
-   :ssh-key-id/private-key-path "<PATH_TO_YOUR_PRIVATE_KEY>"}}
+  {:name :fill-in-your/name
+   :email :fill-in-your/email
+   :ssh-key-id/public-key-path :fill-in-your/public-key-path
+   :ssh-key-id/private-key-path :fill-in-your/private-key-path}}
 
  :publish-configs
  {:underties
   {:publisher :underties
-   :identity :main-identity}}
-
- :np.contacts/configs
- [{:ctx "#contacts" 
-    :under-namespace :contacts}]}
+   :identity :main-identity}}}

@@ -745,11 +745,7 @@
    {}
 
    :default-publish-configs 
-   []
-
-   :np.contacts/config 
-   [{:ctx "#self.contacts" 
-     :under-namespace :contacts}]}) 
+   []})
    
 
 (def PublishConfig
@@ -758,11 +754,6 @@
    [:identity :keyword]
    [:publication-validity-seconds {:optional true :default (* 60 60 24 7)} :int]]) 
 
-(def ContactsConfig
-  [:map
-   [:ctx :string]
-   [:under-namespace [:or :keyword :string]]])
-
 (def UserConfigOptions
   [:map
    {:closed true}
@@ -770,9 +761,7 @@
    [:publishers              [:map-of :keyword #'MessagePublisherConfig]]
    [:publish-identities      [:map-of :keyword #'PublishIdentity]]
    [:publish-configs         [:map-of :keyword #'PublishConfig]]
-   [:default-publish-configs [:vector :keyword]]
-   ;; Remove
-   [:np.contacts/configs {:optional true} [:vector #'ContactsConfig]]])
+   [:default-publish-configs [:vector :keyword]]])
 
 (def UserContextConfig
   [:map
@@ -812,10 +801,10 @@
               (-> "email:asdf@asdf" "#self.*" :public)))
     (ctx "#underties" {:np.app.underties-server.nix-config-output-path "server.nix"
                        :np.app.underties-server.nixos-deploy "hostname"}
-         (-> :contacts/d "#underties" :public)
-         (-> :contacts/f "#underties" :public))
+         (-> :</self.contacts.d "#underties" :public)
+         (-> :</self.contacts.f "#underties" :public))
     (ctx "#comp.sys.nix"
-         (->> :contacts/d "#comp.sys.nix" :public)
+         (->> :</self.contacts.d "#comp.sys.nix" :public)
          (->>  "email:asdfd@fsdf" "#nix" :public)
          (->  "email:as@sdfasdfdf" "#nixos" :public)
          (->  "uri:http://asdf.com" "#null" :public))])

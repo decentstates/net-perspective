@@ -92,11 +92,7 @@
                  :publisher :main-publisher}}
 
                :default-publish-configs 
-               [:main-config]
-
-               :np.contacts/configs
-               [{:ctx "#contacts" 
-                 :under-namespace :contacts}]}
+               [:main-config]}
 
               a-relations-edn 
               [(dsl/ctx "#" 
@@ -123,7 +119,7 @@
                                           (dsl/->> a-ident "#self")))
 
                         (dsl/ctx "net-perspective.*"
-                                 (dsl/-> :contacts/alice "#net-perspective.*" :public)))]
+                                 (dsl/-> :</contacts.alice "#net-perspective.*" :public)))]
 
               c-config-options-edn
               (assoc-in a-config-options-edn
@@ -140,7 +136,7 @@
                                           (dsl/->> a-ident "#self")))
 
                         (dsl/ctx "net-perspective.*"
-                                 (dsl/->> :contacts/alice "#net-perspective.*" :public)))]]
+                                 (dsl/->> :</contacts.alice "#net-perspective.*" :public)))]]
 
           (dsl/write-contexts (str a-base-dir "/relations.edn") a-relations-edn)
           (dsl/write-config (str a-base-dir "/config.edn") a-config-options-edn)
@@ -176,7 +172,7 @@
                     #{[a-ident ["self"]]}
                     
                     ["net-perspective" "*"]
-                    #{[:contacts/alice ["net-perspective" "*"]]
+                    #{[:</contacts.alice ["net-perspective" "*"]]
                       [a-ident ["net-perspective" "*"]]}
 
                     ["net-perspective" "announcements"]
@@ -187,7 +183,7 @@
                     
                     ["net-perspective" "*"] 
                     #{["email:admin@net-perspective.org" ["net-perspective" "*"]]
-                      [:contacts/alice ["net-perspective" "*"]]
+                      [:</contacts.alice ["net-perspective" "*"]]
                       [a-ident ["net-perspective" "*"]]}
 
                     ["net-perspective" "announcements"]
@@ -235,9 +231,7 @@
                 {:identity :main-identity
                  :publisher :main-publisher}}
 
-               :default-publish-configs [:main-publish-config]
-
-               :np.contacts/configs []}
+               :default-publish-configs [:main-publish-config]}
 
               a-relations-edn 
               [(dsl/ctx "#" 

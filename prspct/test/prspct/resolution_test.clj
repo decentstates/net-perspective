@@ -7,6 +7,8 @@
     [com.gfredericks.test.chuck.generators :as gen']
     [com.gfredericks.test.chuck.clojure-test :refer [checking]]
 
+    [taoensso.telemere :as tel]
+
     [malli.core :as m]
     [malli.generator :as mg]
 
@@ -26,16 +28,11 @@
                  (ctx "food" 
                       (-> "uri:geo:37.786971,-122.399677" "#null"))
                  (ctx "friends" 
-                      (-> :contacts/d "#null")))]
+                      (-> :</self.contacts.d "#null")))]
 
           user-config 
           {:user-contexts
-           (ps/user-relations-dsl->user-config dsl)
-           
-           :user-config-options
-           {:np.contacts/configs [{:ctx "#self.contacts"
-                                   :under-namespace "contacts"}]}}
-            
+           (ps/user-relations-dsl->user-config dsl)}
 
           res 
           (sut/resolve-config user-config [])
@@ -65,7 +62,7 @@
             {:context ["friends"]
              :context-config {}
              :relations
-             [#:relation{:object-pair [:contacts/d ["null"]]
+             [#:relation{:object-pair [:</self.contacts.d ["null"]]
                          :transitive? false,
                          :public? true}
               #:relation{:object-pair ["email:d@test.com" ["null"]]
@@ -77,13 +74,11 @@
             ["food"] 
             #{["uri:geo:37.786971,-122.399677" ["null"]]},
             ["friends"]
-            #{[:contacts/d ["null"]] ["email:d@test.com" ["null"]]}}}]
+            #{[:</self.contacts.d ["null"]] ["email:d@test.com" ["null"]]}}}]
            
-      ;; TODO: How can I refer to myself.
       (is (= expected
              (select-keys res [:resolved-contexts :working-contexts]))))))
 
 (comment
-  (meta #'resolve-config-test)
-  (resolve-config-test)
-  (:test (meta #'resolve-config-test)))
+  (tel/with-min-level :info
+    (resolve-config-test)))

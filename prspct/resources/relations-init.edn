@@ -1,4 +1,3 @@
-(ctx "#")  
 (ctx "#self"
      (->> "email:<YOUR_EMAIL>" "#self" :public)
      (->> "uri:<YOUR_WEBSITE/GITHUB/SOURCEHUT>" "#self" :public)
@@ -8,4 +7,4 @@
      (->> "email:ds@decentstates.com" "#self")
      (->> "ssh-key:ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOirp5rceowRPLnkCT2/vlTPgxtRWPeKdMIPnJ7ixJfi" "#self"))
 (ctx "#underties"
-     (->> :contacts/ds "#underties" :public))
+     (->> :</contacts.ds "#underties" :public))
