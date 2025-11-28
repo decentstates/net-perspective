@@ -425,7 +425,7 @@
           (m/coerce 
             #'ps/UserRelationsDSL 
             user-relations-edn
-            (mt/transformer {:name :file-path}))
+            (ps/file-path-transformer (fs/parent user-relations-path)))
           (catch :ex-info e
             (handle-file-coercion-error user-relations-path e)))
 
@@ -462,7 +462,7 @@
             user-config-options-edn
             (mt/transformer 
               (mt/default-value-transformer {::mt/add-optional-keys true})
-              {:name :file-path}))
+              (ps/file-path-transformer (fs/parent user-config-options-path))))
           (catch :ex-info e
             (handle-file-coercion-error user-config-options-path e)))
 
@@ -501,7 +501,7 @@
   [handler middlewares]
   (reduce (fn [acc middleware] (middleware acc)) handler (reverse middlewares)))
 
-(defn init! [ctx]
+(defn basic-init! [ctx]
   (let [opts (:opts ctx)]
     (doseq [kw [:prspct-dir :user-config-path]]
       (let [p (get opts kw)]
@@ -528,6 +528,13 @@
             {})
       (fs/create-sym-link (fs/path (:fetch-head-symlink-path opts))
                           fetch-0))))
+
+(defn init! [ctx]
+  (basic-init! ctx))
+
+  ;; Do you wish to generate a new key pair? (y/n)
+  ;; What is your name/nickname:
+  ;; What is your email:
 
 (def dispatch-table
   (mapv
@@ -611,6 +618,7 @@
 
   (-main "build" "flat-ssh-keys" "#underties" "--base-dir" "/home/ds/perspects/ds@underties" "--log-level" "info")
   (run "fetch --base-dir /home/ds/perspects/ds@underties")
-  (run "publications /tmp/publications --base-dir /home/ds/perspects/ds@underties")
+  (run "publications --base-dir /home/ds/perspects/j")
+  (run "fetch --base-dir /home/ds/perspects/j")
   (-main "--print-build-info")
   (-main))

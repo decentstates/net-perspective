@@ -7,6 +7,8 @@
 
     [cognitect.anomalies :as anom]
 
+    [babashka.fs :as fs]
+
     [taoensso.telemere :as tel]
     [taoensso.truss :refer [have have! have!? have? ex-info!]]
 
@@ -710,15 +712,20 @@
 (defn include-ident-rel->internal-context [rel]
   (-> rel :relation/object-pair first include-ident->internal-context))
 
-
-(defn expand-home [s]
-  (if (str/starts-with? s "~")
-    (str/replace-first s "~" (System/getProperty "user.home"))
-    s))
-
 (def FilePath 
   [:string
-   {:decode/file-path {:leave expand-home}}])
+   {::file-path true}])
+
+(defn file-path-transformer [path-relative-to]
+  (mt/transformer
+    {:default-decoder
+     {:compile
+      (fn [schema _]
+        (when (get (m/properties schema) ::file-path)
+          (fn [f]
+            (if (fs/relative? f)
+              (->> f (fs/path path-relative-to) str)
+              (->> f fs/expand-home str)))))}}))
 
 (def PublishToName :string)
 (def PublishToEmail [:re #"^.*@.*$"]) 
