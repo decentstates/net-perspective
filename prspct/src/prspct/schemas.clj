@@ -861,7 +861,7 @@
 
 (defn parse-user-relations-dsl-relation 
   ([transitivity object-identifier object-context]
-   (parse-user-relations-dsl-relation transitivity object-identifier object-context :public))
+   (parse-user-relations-dsl-relation transitivity object-identifier object-context false))
 
   ([transitivity object-identifier object-context public?]
    {:relation/object-pair [object-identifier (context->internal-context object-context)]
