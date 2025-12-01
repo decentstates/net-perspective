@@ -5,7 +5,7 @@
     [clojure.string :as str]
     [clojure.set :as set]
     [clojure.stacktrace]
-    [clojure.walk]
+    [clojure.walk :as walk]
 
     [cognitect.anomalies :as anom]
 
@@ -119,7 +119,7 @@
      {:desc (->> (methods user-commands/build!) keys (map name) sort (str/join ", "))
        :coerce keyword
        :defalt :edn
-       :requid true}
+       :required true}
 
       ;; TODO: Rename this var...
      :context-ref
@@ -133,7 +133,34 @@
       :coerce :string
       :default "./publications/"
       :required true
-      ::relative-to :cwd})})
+      ::relative-to :cwd}
+
+     :init-generate-keys
+     {:desc "Generate a key-pair during init."
+      :coerce :boolean
+      :default false}
+
+     :init-generate-keys-dir
+     {:desc "If using --init-generate-keys, the dir to generate the keys in. Will create the dir if needed. Relative to prspct dir."
+      :coerce :string
+      :default "./keys"
+      ::relative-to :prspct-dir}
+
+     :init-generate-keys-name
+     {:desc "If using --init-generate-keys, the name for the key."
+      :coerce :string
+      :default "id_prspct"}
+
+     :init-name
+     {:desc "Name to use in your config.edn."
+      :coerce :string
+      :required false}
+
+     :init-email
+     {:desc "Email to use in your config.edn."
+      :coerce :string
+      :required false})})
+      
 
 ;; Option keys must be unique:
 (have! empty? (set/intersection (set (keys (:spec common-cli-spec)))
@@ -501,8 +528,14 @@
   [handler middlewares]
   (reduce (fn [acc middleware] (middleware acc)) handler (reverse middlewares)))
 
-(defn basic-init! [ctx]
-  (let [opts (:opts ctx)]
+(defn init! [ctx]
+  (let [opts (:opts ctx)
+
+        {:keys [user-config-options-path
+                init-generate-keys init-generate-keys-dir init-generate-keys-name 
+                init-name init-email]}
+        opts]
+        
     (doseq [kw [:prspct-dir :user-config-path]]
       (let [p (get opts kw)]
         (when (fs/exists? p)
@@ -516,8 +549,44 @@
     (spit (str (fs/path (:prspct-dir opts) ".gitignore"))
           "*")
 
-    (spit (:user-config-options-path opts) 
-          (slurp (io/resource "config-options-init.edn")))
+    (let [config-options-init 
+          (edamame/parse-string (slurp (io/resource "config-options-init.edn")))
+
+          replacements
+          (as-> {} $
+            (if init-generate-keys
+              (let [private-key-path (str (fs/path init-generate-keys-dir init-generate-keys-name))
+                    public-key-path (str (fs/path init-generate-keys-dir (str init-generate-keys-name ".pub")))
+                    maybe-relativize
+                    (fn [path]
+                      (if (fs/starts-with? path (fs/parent user-config-options-path))
+                        (str (fs/relativize (fs/parent user-config-options-path) path))
+                        path))]
+                (when (fs/exists? private-key-path)
+                  (ex-info! (str "Cannot generate-keys: path `" private-key-path "` already exists.") 
+                            {::anom/category ::anom/incorrect
+                             :opts opts}))
+                (fs/create-dirs init-generate-keys-dir)
+                (have! (utils/ssh-keygen "-t" "ed25519" "-f" private-key-path "-q" "-N" ""))
+                (have! fs/exists? private-key-path)
+                (have! fs/exists? public-key-path)
+                (-> $ 
+                    (assoc :fill-in-your/private-key-path (maybe-relativize private-key-path))
+                    (assoc :fill-in-your/public-key-path (maybe-relativize public-key-path))))
+              $)
+
+            (if init-name
+              (assoc $ :fill-in-your/name init-name)
+              $)
+
+            (if init-email
+              (assoc $ :fill-in-your/email init-email)
+              $))
+          
+          config-options
+          (walk/postwalk-replace replacements config-options-init)]
+      (spit (:user-config-options-path opts) 
+        (with-out-str (pprint config-options))))
 
     (spit (:user-relations-path opts) 
           (slurp (io/resource "relations-init.edn")))
@@ -529,13 +598,6 @@
       (fs/create-sym-link (fs/path (:fetch-head-symlink-path opts))
                           fetch-0))))
 
-(defn init! [ctx]
-  (basic-init! ctx))
-
-  ;; Do you wish to generate a new key pair? (y/n)
-  ;; What is your name/nickname:
-  ;; What is your email:
-
 (def dispatch-table
   (mapv
     (fn [dispatch-spec]
@@ -545,7 +607,13 @@
       ::desc "Initialise the current directory"
       ::usage "init"
       :fn (wrap-middlewares init!
-                            [common-middlewares])}
+                            [common-middlewares])
+      ::cmd-spec (select-keys (:spec non-common-cli-spec)
+                              [:init-generate-keys
+                               :init-generate-keys-dir
+                               :init-generate-keys-name
+                               :init-name
+                               :init-email])}
 
      {:cmds ["fetch"]
       ::desc "Fetch from sources listed in prspct.edn"
@@ -620,5 +688,6 @@
   (run "fetch --base-dir /home/ds/perspects/ds@underties")
   (run "publications --base-dir /home/ds/perspects/j")
   (run "fetch --base-dir /home/ds/perspects/j")
+  (run "init --base-dir /tmp/flippy0")
   (-main "--print-build-info")
   (-main))

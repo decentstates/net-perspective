@@ -105,8 +105,8 @@
                (let [private-key-path# (str d# "/key")
                      public-key-path# (str d# "/key.pub")]
                  (have! (ssh-keygen "-t" "ed25519" "-f" private-key-path# "-q" "-N" ""))
-                 (have fs/exists? private-key-path#)
-                 (have fs/exists? public-key-path#)
+                 (have! fs/exists? private-key-path#)
+                 (have! fs/exists? public-key-path#)
                  {:private
                   private-key-path#
 

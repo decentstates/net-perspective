@@ -99,7 +99,7 @@
 (defn shell-publisher 
   "Provide args to provide to clojure.java.shell/sh
 
-  In args, :input-dir keyword will be substituted.
+  In args, :input-dir, :input-dir-slash-dot keywords will be substituted.
   The expectation is to publish all .eml files.
   "
   [args]
@@ -110,8 +110,14 @@
     (-publisher-publish! [_ input-dir]
       (let [substitute-f 
             (fn [arg]
-              (if (= arg :input-dir)
+              (cond 
+                (= :input-dir arg)
                 input-dir
+
+                (= :input-dir-slash-dot arg)
+                (str input-dir "/.")
+                
+                :else
                 arg))
 
             args' 

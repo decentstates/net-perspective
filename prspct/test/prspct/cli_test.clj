@@ -14,6 +14,7 @@
     [malli.instrument :as mi]
 
     [babashka.fs :as fs]
+    [edamame.core :as edamame]
 
     [prspct.dsl :as dsl]
     [prspct.schemas :as ps]
@@ -44,9 +45,7 @@
 
 (deftest integration-test
   (testing "basic roundtrip"
-    (utils/with-temp-key-pairs [a-key-pair {:no-delete *no-delete-test-data*}
-                                b-key-pair {:no-delete *no-delete-test-data*}
-                                c-key-pair {:no-delete *no-delete-test-data*}]
+    (utils/with-temp-key-pairs [a-key-pair {:no-delete *no-delete-test-data*}]
       (utils/with-temp-dir [a-base-dir {:no-delete *no-delete-test-data*}
                             b-base-dir {:no-delete *no-delete-test-data*}
                             c-base-dir {:no-delete *no-delete-test-data*}
@@ -54,14 +53,20 @@
         (when *no-delete-test-data*
           (println 'a-key-pair (str a-key-pair))
           (println 'a-base-dir (str a-base-dir))
-          (println 'b-key-pair (str b-key-pair))
           (println 'b-base-dir (str b-base-dir))
-          (println 'c-key-pair (str c-key-pair))
           (println 'c-base-dir (str c-base-dir))
           (println 'srv-dir (str srv-dir)))
         (sut/-main "init" "--base-dir" a-base-dir)
-        (sut/-main "init" "--base-dir" b-base-dir)
-        (sut/-main "init" "--base-dir" c-base-dir)
+        (sut/-main "init" "--base-dir" b-base-dir "--init-generate-keys" "--init-name" "Bob" "--init-email" "bob@example.com")
+        (sut/-main "init" "--base-dir" c-base-dir "--init-generate-keys" "--init-name" "Charlie" "--init-email" "charlie@example.com")
+
+        (let [c-config-options-edn
+              (edamame/parse-string (slurp (str c-base-dir "/config.edn")))
+              main-identity
+              (get-in c-config-options-edn [:publish-identities :main-identity])]
+          (is (= "Charlie" (:name main-identity)))
+          (is (= "charlie@example.com" (:email main-identity))))
+
         (let [a-ident 
               (-> a-key-pair :public slurp ps/ssh-public-key->identifier-ssh)
 
@@ -108,13 +113,17 @@
                                  (dsl/->> "uri:feed:https://net-perspective.org/feed.atom" :public))
                         (dsl/ctx "net-perspective.*"
                                  (dsl/->> "email:admin@net-perspective.org" "#net-perspective.*" :public)))]
+
+              b-config-options-edn
+              (edamame/parse-string (slurp (str b-base-dir "/config.edn")))
+
+              b-main-identity
+              (get-in b-config-options-edn [:publish-identities :main-identity])
+                        
               b-config-options-edn
               (assoc-in a-config-options-edn
                         [:publish-identities :main-identity]
-                        {:name "Bob"
-                         :email "bob@example.com"
-                         :ssh-key-id/public-key-path (:public b-key-pair)
-                         :ssh-key-id/private-key-path (:private b-key-pair)})
+                        b-main-identity)
                         
               b-relations-edn 
               [(dsl/ctx "#" 
@@ -128,13 +137,16 @@
                                  (dsl/-> :</contacts.alice "#net-perspective.*" :public)))]
 
               c-config-options-edn
+              (edamame/parse-string (slurp (str c-base-dir "/config.edn")))
+
+              c-main-identity
+              (get-in c-config-options-edn [:publish-identities :main-identity])
+                        
+              c-config-options-edn
               (assoc-in a-config-options-edn
                         [:publish-identities :main-identity]
-                        {:name "Charlie"
-                         :email "charlie@example.com"
-                         :ssh-key-id/public-key-path (:public c-key-pair)
-                         :ssh-key-id/private-key-path (:private c-key-pair)})
-                        
+                        c-main-identity)
+
               c-relations-edn 
               [(dsl/ctx "#" 
                         (dsl/ctx "contacts"
