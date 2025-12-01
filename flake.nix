@@ -1,6 +1,6 @@
 {
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
     flake-utils.url = "github:numtide/flake-utils";
 
     clojure-nix-locker.url = "github:bevuta/clojure-nix-locker";
@@ -9,10 +9,16 @@
   };
 
   outputs = { self, nixpkgs, flake-utils, clojure-nix-locker, ... }:
+    {
+        templates.default = {
+          path = ./prspct-flake-template;
+          description = "Ready-made environment for using prspct";
+        };
+    } //
     flake-utils.lib.eachDefaultSystem (system:
       let
         lib = nixpkgs.lib;
-        pkgs = import nixpkgs { inherit system; config.allowUnfree = true; };
+        pkgs = import nixpkgs { inherit system; };
         jdk = pkgs.graalvmPackages.graalvm-ce;
         clojure = (pkgs.clojure.override { inherit jdk; });
         prspct-clojure-nix-locker = clojure-nix-locker.lib.customLocker {
@@ -34,7 +40,7 @@
             clojure
             pkgs.git
             pkgs.openssh
-            # Breaks on macos
+            # Breaks on macos:
             # pkgs.breakpointHook
           ];
 
