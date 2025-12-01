@@ -8,24 +8,36 @@
 
 ### Decisions
 
-- [x] Context format
-  Hash tag seems sensible, as it is like a tag:
-  - #context.path.like.usenet - I like this as it is traditional, distinctive
-    and unique.
-  - #context/path/like/fs - this would better match what they see in an
-    email... unless we have everything flat :o That might encourage people to
-    have fewer contexts.
-  => usenet like format
-
+- [ ]
 
 ### Features
 
-- [ ] 
+- [x] init feature
+- [x] flake init template with basic dev shell
 
 
 ### Simplification
 
-- [ ]
+- [ ] provide instant time in the context to pass through the system
+- [x] nil contexts
+- [x] shortening relations
+- [ ] *->> ->>* relations
+
+
+### Bugs
+
+- [x] Ensure include contexts exist
+- [x] Fix publish visibility 
+- [x] Add a test for publish visibility
+- [ ] Add example relations to youtube videos in init
+- [ ] Add tutorial in init expaining the syntax
+- [x] Need better failure output on publish, iterate over failed publishers
+- [x] Need better failure output on fetch, iterate over failed fetches
+- [x] Check why max iterations is being met on includes
+- [ ] Add test on fixed point limit
+- [ ] Add test for prspct full init, with publications working
+- [x] Fix relative key path
+- [x] Test flake init
 
 
 ### Maintenance

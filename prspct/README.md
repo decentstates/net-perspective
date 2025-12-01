@@ -11,7 +11,35 @@ Example applications include:
 - Keeping track of contacts
 
 
-## Getting running
+## Getting started
+
+**Flake Template Method**
+
+Pre-requisites:
+- nix with flakes enabled
+
+```bash
+mkdir my-perspect
+cd my-perspect
+git init
+nix flake init -t git+https://git.sr.ht/~decentstates/net-perspective
+# Nix needs things added to git, may as well commit:
+git commit -am "Initial commit"
+
+# Using direnv:
+direnv allow
+
+# Otherwise
+nix develop
+
+prspct init --init-generate-keys --init-name "Your Name or Pseudonym" --init-email "Your email"
+
+# Send your public key to someone in the #underties network to get access to the server
+cat .prspct/keys/id_prspct.pub
+```
+
+
+## Development
 
 Download from https://git.sr.ht/~decentstates/net-perspective
 
