@@ -845,7 +845,7 @@
    [:cat
     [:or [:= '->] [:= '->>]]
     #'UserConfigIdentifier
-    #'Context
+    [:? #'Context]
     [:? [:= :public]]]])
 
 (def UserRelationsDSLContextEntry
@@ -887,9 +887,22 @@
                      #"^#.*$"]
                     [:* :any]]]]]])
 
+
 (defn parse-user-relations-dsl-relation 
-  ([transitivity object-identifier object-context]
-   (parse-user-relations-dsl-relation transitivity object-identifier object-context false))
+  ([transitivity object-identifier]
+   (parse-user-relations-dsl-relation transitivity object-identifier "#" false))
+
+  ([transitivity object-identifier x]
+   (cond
+     (string? x)
+     (let [object-context x]
+       (parse-user-relations-dsl-relation transitivity object-identifier object-context false))
+      
+     (= :public x)
+     (parse-user-relations-dsl-relation transitivity object-identifier "#" :public)
+     
+     :else
+     (ex-info! (str "Unknown parameter in relation"))))
 
   ([transitivity object-identifier object-context public?]
    {:relation/object-pair [object-identifier (context->internal-context object-context)]

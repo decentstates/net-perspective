@@ -96,16 +96,18 @@
 
               a-relations-edn 
               [(dsl/ctx "#" 
+                        (dsl/ctx "misc"
+                                 (dsl/-> "uri:https://wikipedia.com/" :public))
                         (dsl/ctx "private"
-                                 (dsl/->> "uri:http://some-private.example.com/" "#null"))
+                                 (dsl/->> "uri:http://some-private.example.com/")
+                                 (dsl/->> "uri:http://some-other-private.example.com/" "#private"))
                         (dsl/ctx "net-perspective"
                                  (dsl/-> "uri:https://net-perspective.org" "#net-perspective.*" :public)
                                  (dsl/-> "email:admin@net-perspective.org" "#net-perspective.*" :public))
                         (dsl/ctx "net-perspective.announcements"
-                                 (dsl/->> "uri:feed:https://net-perspective.org/feed.atom" "#net-perspective.announcements" :public))
+                                 (dsl/->> "uri:feed:https://net-perspective.org/feed.atom" :public))
                         (dsl/ctx "net-perspective.*"
                                  (dsl/->> "email:admin@net-perspective.org" "#net-perspective.*" :public)))]
-
               b-config-options-edn
               (assoc-in a-config-options-edn
                         [:publish-identities :main-identity]
@@ -155,8 +157,13 @@
           (sut/-main "fetch" "--base-dir" b-base-dir)
           (sut/-main "fetch" "--base-dir" c-base-dir)
           (with-out-str
-            (is (= {["private"]
-                    #{["uri:http://some-private.example.com/" ["null"]]}
+            (is (= {
+                    ["misc"]
+                    #{["uri:https://wikipedia.com/" []]}
+                    
+                    ["private"]
+                    #{["uri:http://some-private.example.com/" []]
+                      ["uri:http://some-other-private.example.com/" ["private"]]}
                     
                     ["net-perspective"]
                     #{["email:admin@net-perspective.org" ["net-perspective" "*"]]
@@ -166,11 +173,13 @@
                     #{["email:admin@net-perspective.org" ["net-perspective" "*"]]}
 
                     ["net-perspective" "announcements"]
-                    #{["uri:feed:https://net-perspective.org/feed.atom" ["net-perspective" "announcements"]]}}
+                    #{["uri:feed:https://net-perspective.org/feed.atom" []]}}
                    (sut/-main "build" "edn" "#**" "--base-dir" a-base-dir)))
             (is (= #{"http://some-private.example.com/" 
+                     "http://some-other-private.example.com/" 
                      "https://net-perspective.org"
-                     "feed:https://net-perspective.org/feed.atom"}
+                     "feed:https://net-perspective.org/feed.atom"
+                     "https://wikipedia.com/"}
                    (sut/-main "build" "flat-uris" "#**" "--base-dir" a-base-dir))) 
             (is (= #{}
                    (sut/-main "build" "flat-emails" "#non-existent" "--base-dir" a-base-dir))) 
@@ -200,7 +209,7 @@
 
                     ["net-perspective" "announcements"]
                     #{[a-ident ["net-perspective" "announcements"]]
-                      ["uri:feed:https://net-perspective.org/feed.atom" ["net-perspective" "announcements"]]}}
+                      ["uri:feed:https://net-perspective.org/feed.atom" []]}}
                    (sut/-main "build" "edn" "#**" "--base-dir" c-base-dir))))))))
             ;; TODO: Search the entire srv-dir for the private url 
 
