@@ -41,6 +41,9 @@
                       "--initialize-at-build-time=org.slf4j.helpers.NOPLoggerFactory"
                       "--initialize-at-build-time=java.time.Instant"
                       "-classpath" (java.lang.System/getProperty "java.class.path")
+                      ;; Fix for aarm64-darwin not detecting the toolchain properly:
+                      "-H:-CheckToolchain"
+                      "-H:IncludeResources=.*build-info.edn"
                       "-H:IncludeResources=.*build-info.edn"
                       "-H:IncludeResources=.*config-options-init.edn"
                       "-H:IncludeResources=.*relations-init.edn")]
