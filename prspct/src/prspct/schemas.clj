@@ -723,9 +723,12 @@
       (fn [schema _]
         (when (get (m/properties schema) ::file-path)
           (fn [f]
-            (if (fs/relative? f)
-              (->> f (fs/path path-relative-to) str)
-              (->> f fs/expand-home str)))))}}))
+            (as-> f $
+              (fs/expand-home $)
+              (if (fs/relative? $)
+                (fs/path path-relative-to $)
+                $)
+              (str $)))))}}))
 
 (def PublishToName :string)
 (def PublishToEmail [:re #"^.*@.*$"]) 
