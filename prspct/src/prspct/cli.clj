@@ -525,6 +525,13 @@
                       {:user-config user-config
                        :resolved-config resolved-config})))))
 
+(defn middleware-with-cwd [handler]
+  (fn [ctx]
+    (let [opts (:opts ctx)
+          base-dir (:base-dir opts)]
+      (binding [utils/*sh-cwd* base-dir]
+        (handler ctx)))))
+
 (def common-middlewares
   (comp
     middleware-logging-level!
@@ -534,6 +541,7 @@
     middleware-print-build-info
     middleware-version
     middleware-normalize-paths
+    middleware-with-cwd
     middleware-print-cli-options))
 
 (defn wrap-middlewares   

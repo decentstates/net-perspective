@@ -16,6 +16,9 @@
     [java.time Instant ZoneId]
     [java.security MessageDigest]))
 
+
+(def ^:dynamic *sh-cwd* nil)
+
 (defn sha256 [^String s]
   (have! string? s)
   (let [hash (MessageDigest/getInstance "SHA-256")]
@@ -77,6 +80,9 @@
 
 (defn ssh-keygen [& args]
   (let [args (into ["ssh-keygen"] args)
+        args (if *sh-cwd*
+               (into args [:dir *sh-cwd*])
+               args)
         ret (apply shell/sh args)]
     (assoc ret :args args)))
 
