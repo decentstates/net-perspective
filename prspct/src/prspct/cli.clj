@@ -97,7 +97,12 @@
       :coerce :boolean}
 
      :print-cli-options
-     {:desc "Print cli options and context instead of running command."
+     {:desc "Print cli options instead of running command."
+      :default false
+      :coerce :boolean}
+
+     :print-cli-context
+     {:desc "Print cli context instead of running command."
       :default false
       :coerce :boolean}
 
@@ -281,6 +286,14 @@
 (defn middleware-print-cli-options [handler]
   (fn [ctx]
     (if (get-in ctx [:opts :print-cli-options])
+      (do
+        (pprint ctx)
+        (flush))
+      (handler ctx))))
+
+(defn middleware-print-cli-context [handler]
+  (fn [ctx]
+    (if (get-in ctx [:opts :print-cli-context])
       (do
         (pprint ctx)
         (flush))
@@ -518,15 +531,17 @@
     middleware-eventer
     middleware-exception-handling
     middleware-help
-    middleware-print-cli-options
     middleware-print-build-info
     middleware-version
-    middleware-normalize-paths))
+    middleware-normalize-paths
+    middleware-print-cli-options))
 
 (defn wrap-middlewares   
   "Applied from top to bottom"
   [handler middlewares]
-  (reduce (fn [acc middleware] (middleware acc)) handler (reverse middlewares)))
+  ;; We want middleware-print-cli-context after all the other middleware to get maximum context
+  (let [middlewares (conj middlewares middleware-print-cli-context)]
+    (reduce (fn [acc middleware] (middleware acc)) handler (reverse middlewares))))
 
 (defn init! [ctx]
   (let [opts (:opts ctx)
