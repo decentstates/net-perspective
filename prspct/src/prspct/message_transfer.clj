@@ -56,8 +56,7 @@
 ;; TODO: Add error code
 (defn- shell-transfer [args]
   (try
-    ;; TODO: Use *sh-cwd*
-    (let [res (apply shell/sh args)]
+    (let [res (apply utils/sh args)]
       {:transfer-result/success? (zero? (:exit res))
        :transfer-result/exception nil
        :transfer-result/out (:out res)

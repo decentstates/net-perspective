@@ -78,12 +78,16 @@
     (println c)))
          
 
+(defn sh [& args]
+  (let [args (if *sh-cwd*
+              (into (vec args) 
+                    [:dir *sh-cwd*])
+              args)]
+     (apply shell/sh args)))
+
 (defn ssh-keygen [& args]
   (let [args (into ["ssh-keygen"] args)
-        args (if *sh-cwd*
-               (into args [:dir *sh-cwd*])
-               args)
-        ret (apply shell/sh args)]
+        ret (apply sh args)]
     (assoc ret :args args)))
 
 (defn assert-sh-ret [ret purpose]

@@ -639,7 +639,7 @@
                                :init-email])}
 
      {:cmds ["fetch"]
-      ::desc "Fetch from sources listed in prspct.edn"
+      ::desc "Fetch from sources as per your configuration."
       ::usage "fetch"
       :fn (wrap-middlewares (fn [{:keys [opts resolved-config]}]
                               (user-commands/fetch! resolved-config
@@ -660,7 +660,7 @@
       :args->opts [:publications-output-dir]}
       
      {:cmds ["publish"]
-      ::desc "Publish to publishers as per prspct.edn"
+      ::desc "Publish to publishers as per your configuration."
       ::usage "publish"
       :fn (wrap-middlewares (fn [{:keys [resolved-config opts]}]
                               (let [{:keys [last-publish-info-path]} opts]
