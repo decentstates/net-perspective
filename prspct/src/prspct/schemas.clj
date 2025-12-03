@@ -222,27 +222,82 @@
   (edn-message->simple-message #'ExampleMessage (mg/generate #'ExampleMessage)))
 
 
+
+;; ### PrspctServer
+
+(def PrspctServerUrl
+  [:re #"prspct\+sftp://.*/server-info\.edn"])
+
+(def PrspctServerInfo
+  [:map
+   [:version :string]
+   [:publish-url :string]
+   [:fetch-url :string]])
+
+
 ;; ### Message Transfer
 
 (def example-publications-dir "/tmp/example-prspct/srv/np-publications")
 
-(def MessageSourceConfig
+(def MessageSourceConfigShell
   [:map
-   [:source/fn :qualified-symbol]
-   [:source/args vector?]])
+   [:shell/args [:vector [:or :string 
+                              [:= :output-dir]]]]])
+
+(def MessageSourceConfigPrspctSftp
+  [:map
+   [:prspct-sftp/url 
+    [:re #"prspct\+sftp:.*/server-info\.edn"]]])
+
+(defn message-source-config-dispatch [message-source-config]
+  (let [namespaces (mapv namespace (keys message-source-config))]
+    (when (= 1 (count namespaces))
+      (case (first namespaces)
+        "shell"
+        :shell
+
+        "prspct-sftp"
+        :prspct-sftp))))
+
+(def MessageSourceConfig
+  [:multi {:dispatch message-source-config-dispatch}
+   [:shell #'MessageSourceConfigShell]
+   [:prspct-sftp #'MessageSourceConfigPrspctSftp]])
 
 (def example-source-config
-  {:source/fn 'prspct.message-transfer/shell-source
-   :source/args ["find" example-publications-dir "-name" "*.eml" "-exec" "cp" "{}" :output-dir ";"]})
+  {:shell/args ["find" example-publications-dir "-name" "*.eml" "-exec" "cp" "{}" :output-dir ";"]})
 
-(def MessagePublisherConfig
+
+(def MessagePublisherConfigShell
   [:map
-   [:publisher/fn :qualified-symbol]
-   [:publisher/args vector?]])
+   [:shell/args [:vector [:or :string 
+                              [:= :input-dir] 
+                              [:= :input-dir-slash-dot]]]]])
+
+(def MessagePublisherConfigPrspctSftp
+  [:map
+   [:prspct-sftp/url 
+    [:re #"prspct\+sftp:.*/server-info\.edn"]]])
+
+(defn message-publisher-config-dispatch [message-publisher-config]
+  (let [namespaces (mapv namespace (keys message-publisher-config))]
+    (if (= 1 (count namespaces))
+      (case (first namespaces)
+        "shell"
+        :shell
+
+        "prspct-sftp"
+        :prspct-sftp)
+      ; else
+      :error-multiple-namespaces)))
+      
+(def MessagePublisherConfig
+  [:multi {:dispatch message-publisher-config-dispatch}
+   [:shell #'MessagePublisherConfigShell]
+   [:prspct-sftp #'MessagePublisherConfigPrspctSftp]])
 
 (def example-publisher-config
-  {:publisher/fn 'prspct.message-transfer/shell-publisher
-   :publisher/args ["find" :input-dir "-name" "*.eml" "-exec" "cp" "{}" example-publications-dir ";"]})
+  {:shell/args ["find" :input-dir "-name" "*.eml" "-exec" "cp" "{}" example-publications-dir ";"]})
 
 (def MessageTransferResult
   [:map

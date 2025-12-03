@@ -38,10 +38,6 @@
   [publication-message-source output-dir]
   (-source-fetch! publication-message-source output-dir))
 
-(defn source-config->source [source-config]
-  ((resolve (:source/fn source-config)) (:source/args source-config)))
-
-
 (defprotocol MessagePublisher
   (-publisher-config [this])
   (-publisher-publish! [this input-dir]))
@@ -54,16 +50,13 @@
 (defn publisher-publish! [this input-dir]
   (-publisher-publish! this input-dir))
 
-(defn publisher-config->publisher [publisher-config]
-  ((resolve (:publisher/fn publisher-config)) (:publisher/args publisher-config)))
-
-
 
 ;; ## Implementations
 
 ;; TODO: Add error code
 (defn- shell-transfer [args]
   (try
+    ;; TODO: Use *sh-cwd*
     (let [res (apply shell/sh args)]
       {:transfer-result/success? (zero? (:exit res))
        :transfer-result/exception nil
@@ -79,14 +72,16 @@
   "Provide args to provide to clojure.java.shell/sh
 
   In args, :output-dir keyword will be substituted."
-  [args]
+  [source-config]
   (reify MessageSource
     (-source-config [_] 
-      {:source/fn `shell-source
-       :source/args args})
+      source-config)
     (-source-fetch! [_ output-dir]
       (fs/create-dirs output-dir)
-      (let [substitute-f 
+      (let [args
+            (:shell/args source-config)
+
+            substitute-f 
             (fn [arg]
               (if (= arg :output-dir)
                 (str output-dir)
@@ -94,7 +89,7 @@
 
             args' 
             (mapv substitute-f args)]
-        (apply shell-transfer [args'])))))
+        (shell-transfer args')))))
 
 (defn shell-publisher 
   "Provide args to provide to clojure.java.shell/sh
@@ -102,13 +97,15 @@
   In args, :input-dir, :input-dir-slash-dot keywords will be substituted.
   The expectation is to publish all .eml files.
   "
-  [args]
+  [publisher-config]
   (reify MessagePublisher
     (-publisher-config [_] 
-      {:publisher/fn `shell-publisher
-       :publisher/args [args]})
+      publisher-config)
     (-publisher-publish! [_ input-dir]
-      (let [substitute-f 
+      (let [args
+            (:shell/args publisher-config)
+
+            substitute-f 
             (fn [arg]
               (cond 
                 (= :input-dir arg)
@@ -116,15 +113,38 @@
 
                 (= :input-dir-slash-dot arg)
                 (str input-dir "/.")
-                
+
                 :else
                 arg))
 
             args' 
             (mapv substitute-f args)]
+        (shell-transfer args')))))
 
-        (apply shell-transfer [args'])))))
 
+;; ## Implementation dispatching
+
+(def source-config-dispatch->implementation
+  {:shell #'shell-source})
+
+(defn source-config->source [source-config]
+  (let [dispatch (ps/message-source-config-dispatch source-config)
+        impl-fn (source-config-dispatch->implementation dispatch)]
+    (have! impl-fn)
+    (impl-fn source-config)))
+
+(def publisher-config-dispatch->implementation
+  {:shell #'shell-publisher})
+
+(defn publisher-config->publisher [publisher-config]
+  (let [dispatch (ps/message-publisher-config-dispatch publisher-config)
+        impl-fn (publisher-config-dispatch->implementation dispatch)]
+    (have! impl-fn)
+    (impl-fn publisher-config)))
+
+
+
+;; ## Message transfer
 
 (defn- new-fetch-info [source-configs]
   {:fetch-info/uuid
@@ -140,7 +160,6 @@
                  {:fetch-info-source/output-dir (str (hash source-config))
                   :fetch-info-source/status :not-started}]))
           source-configs)})
-
 
 (defn fetch! 
   ([source-configs output-dir]

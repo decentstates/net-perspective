@@ -73,16 +73,13 @@
               a-config-options-edn
               {:sources
                {:main-source 
-                {:source/fn 'prspct.message-transfer/shell-source
-                 :source/args
+                {:shell/args
                  ["find" (str srv-dir) "-name" "*.eml" "-exec" "cp" "{}" :output-dir ";"]}}
 
                :publishers
                {:main-publisher
-                {:publisher/fn 
-                  'prspct.message-transfer/shell-publisher
-                  :publisher/args 
-                  ["find" :input-dir "-name" "*.eml" "-exec" "cp" "{}" (str srv-dir) ";"]}}
+                {:shell/args
+                 ["find" :input-dir "-name" "*.eml" "-exec" "cp" "{}" (str srv-dir) ";"]}}
 
                :publish-identities 
                {:main-identity
@@ -237,20 +234,16 @@
         (let [a-config-options-edn
               {:sources
                {:main 
-                {:source/fn 'prspct.message-transfer/shell-source
-                 :source/args
+                {:shell/args
                  ["find" (str srv-dir) "-name" "*.eml" "-exec" "cp" "{}" :output-dir ";"]}
 
                 :bad
-                {:source/fn 'prspct.message-transfer/shell-source
-                 :source/args
+                {:shell/args
                  ["false" "find" (str srv-dir) "-name" "*.eml" "-exec" "cp" "{}" :output-dir ";"]}}
 
                :publishers
                {:main-publisher
-                {:publisher/fn 
-                 'prspct.message-transfer/shell-publisher
-                 :publisher/args 
+                {:shell/args
                  ["find" :input-dir "-name" "*.eml" "-exec" "cp" "{}" (str srv-dir) ";"]}}
 
                :publish-identities 

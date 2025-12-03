@@ -1,15 +1,13 @@
 {:sources 
 
  {:underties-source
-  {:source/fn prspct.message-transfer/shell-source
-   :source/args
+  {:shell/args
    ;; TODO: Need to set the cwd to the parent of the config file...
    ["scp" "-r" "-i" :fill-in-your/private-key-path "prspct@alpha.underties.net:/srv/prspct/." :output-dir]}}
 
  :publishers 
  {:underties-publisher 
-  {:publisher/fn prspct.message-transfer/shell-publisher
-   :publisher/args 
+  {:shell/args
    ["scp" "-r" "-i" :fill-in-your/private-key-path :input-dir-slash-dot "prspct@alpha.underties.net:/srv/prspct/"]}}
 
  :publish-identities

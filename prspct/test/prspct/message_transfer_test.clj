@@ -26,14 +26,14 @@
                                :exception nil
                                :out (str "cp /from/here " d "\n")
                                :err ""}
-             (sut/source-fetch! (sut/shell-source ["echo" "cp" "/from/here" :output-dir]) d))))))
+             (sut/source-fetch! (sut/shell-source {:shell/args ["echo" "cp" "/from/here" :output-dir]}) d))))))
 
 (deftest fetch-test
   (testing "basics"
     (let [fetch
           (fs/with-temp-dir [d {}] 
-            (sut/fetch! [(sut/source-config (sut/shell-source ["echo" "cp" "/from/a" :output-dir]))
-                         (sut/source-config (sut/shell-source ["echo" "cp" "/from/b" :output-dir]))]
+            (sut/fetch! [{:shell/args ["echo" "cp" "/from/a" :output-dir]}
+                         {:shell/args ["echo" "cp" "/from/b" :output-dir]}]
                        d))]
       (is (= 2 (count (:fetch-info/sources fetch))))
       (is (every? :fetch-info-source/success? (vals (:fetch-info/sources fetch))))))) 
@@ -43,9 +43,8 @@
     (fs/with-temp-dir [parent-input-dir {}]
       (fs/with-temp-dir [publish-dir {}]
         (let [envelopes (mg/generate [:vector ps/EDNMessageEnvelope])
-              envelopes' (mapv #(assoc % :publisher {:publisher/fn 'prspct.message-transfer/shell-publisher
-                                                     :publisher/args ["find" :input-dir "-name" "*.eml" 
-                                                                      "-exec" "cp" "{}" (str publish-dir) ";"]})
+              envelopes' (mapv #(assoc % :publisher {:shell/args ["find" :input-dir "-name" "*.eml" 
+                                                                  "-exec" "cp" "{}" (str publish-dir) ";"]})
                                envelopes)
 
               publish-config->input-dir (sut/write-edn-message-envelopes! envelopes' parent-input-dir)
