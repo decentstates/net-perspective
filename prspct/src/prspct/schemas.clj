@@ -826,7 +826,7 @@
   [:map
    [:publisher :keyword]
    [:identity :keyword]
-   [:publication-validity-seconds {:optional true :default (* 60 60 24 7)} :int]]) 
+   [:publication-validity-seconds {:optional true :default (* 60 60 24 7 4)} :int]]) 
 
 (def UserConfigOptions
   [:map
