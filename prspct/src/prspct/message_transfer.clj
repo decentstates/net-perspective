@@ -63,7 +63,7 @@
        :transfer-result/err (:err res)})
     (catch Exception e
       {:transfer-result/success? false
-       :transfer-result/exception e
+       :transfer-result/exception (Throwable->map e)
        :transfer-result/out ""
        :transfer-result/err ""})))
 
