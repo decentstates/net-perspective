@@ -123,7 +123,7 @@
      :build-target
      {:desc (->> (methods user-commands/build!) keys (map name) sort (str/join ", "))
        :coerce keyword
-       :defalt :edn
+       :default :edn
        :required true}
 
       ;; TODO: Rename this var...
