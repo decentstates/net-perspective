@@ -788,18 +788,6 @@
 (def PublishToName :string)
 (def PublishToEmail [:re #"^.*@.*$"]) 
 
-(def PublishToConfig
-  [:map
-   [:publisher :keyword]
-   [:name #'PublishToName]
-   [:email #'PublishToEmail]
-   [:ssh-key-id/public-key-path #'FilePath]
-   [:ssh-key-id/private-key-path #'FilePath]
-   [:publication-validity-seconds {:optional true :default (* 60 60 24 7)} :int]]) 
-
-(def PublishToConfigFilled
-  (mu/assoc PublishToConfig :publisher #'MessagePublisherConfig))
-
 (def PublishIdentity
   [:map
    [:name #'PublishToName]
