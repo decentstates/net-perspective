@@ -30,7 +30,7 @@
       in rec {
         packages.prspct = pkgs.stdenv.mkDerivation {
           pname = "prspct";
-          version = "0.0";
+          version = "0.1.0";
 
           src = ./prspct;
 
