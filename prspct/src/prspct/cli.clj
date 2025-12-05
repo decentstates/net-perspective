@@ -126,9 +126,8 @@
        :default :edn
        :required true}
 
-      ;; TODO: Rename this var...
-     :context-ref
-     {:desc "The context to use to build"
+     :build-context
+     {:desc "The context to use to build, accepts context matchers, e.g.: #** #a.* #b.**"
       :coerce :string
       :default "#**"
       :required true}
@@ -670,24 +669,24 @@
 
      {:cmds ["build"]
       ::desc "Build a target perspective."
-      ::usage "build target [context-ref] [extra opts]"
+      ::usage "build target [build-context] [extra opts]"
       :fn (wrap-middlewares (fn [{:keys [opts resolved-config]}]
-                              (let [{:keys [build-target context-ref]} opts
-                                    output (user-commands/build! build-target context-ref resolved-config)
+                              (let [{:keys [build-target build-context]} opts
+                                    output (user-commands/build! build-target build-context resolved-config)
                                     serialize-fn (:serialize-fn (meta output))]
                                 (print (serialize-fn output))
                                 output))
                             [common-middlewares
                              middleware-resolve-config])
       ::cmd-spec 
-      (select-keys (:spec non-common-cli-spec) [:build-target :context-ref])
+      (select-keys (:spec non-common-cli-spec) [:build-target :build-context])
       
       :validate {:build-target (->> (methods user-commands/build!) keys set)
-                 :context-ref {:pred (m/validator #'ps/Context)
+                 :build-context {:pred (m/validator #'ps/Context)}
                                :ex-msg (fn [m] 
-                                         (str "Invalid value for option :context-ref: " (:value m) "\n"
-                                              "Should be e.g.: #**, #food.deep-fried, #plant.herbs.*"))}}
-      :args->opts [:build-target :context-ref]}
+                                         (str "Invalid value for option :build-context: " (:value m) "\n"
+                                              "Should be e.g.: #**, #food.deep-fried, #plant.herbs.*"))}
+      :args->opts [:build-target :build-context]}
 
      {:cmds []
       :fn (wrap-middlewares print-help

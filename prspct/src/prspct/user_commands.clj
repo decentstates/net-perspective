@@ -209,15 +209,15 @@
                      (println (str "See `" last-publish-info-path "` for more info.")))}))))
                     
 
-(defmulti build! (fn [target context-ref resolved-config] target))
+(defmulti build! (fn [target build-context resolved-config] target))
 
 (defmethod build! :edn
-  [_ context-ref resolved-config]
+  [_ build-context resolved-config]
   (let [resolved-contexts 
         (:resolved-contexts resolved-config)
 
         parsed-context
-        (ps/context->internal-context context-ref)
+        (ps/context->internal-context build-context)
 
         matching-contexts 
         (filterv #(resolution/ctx-match? parsed-context %) 
@@ -230,9 +230,9 @@
         (fn [x] (with-out-str (pprint x)))]
     (with-meta matching-resolved-contexts {:serialize-fn serialize-fn})))
 
-(defn- build-flat [context-ref resolved-config filter-f]
+(defn- build-flat [build-context resolved-config filter-f]
   (let [matching-resolved-contexts
-        (build! :edn context-ref resolved-config)
+        (build! :edn build-context resolved-config)
 
         idents
         (into #{}
@@ -251,21 +251,21 @@
     (with-meta idents {:serialize-fn serialize-fn})))
 
 (defmethod build! :flat-ssh-keys
-  [_ context-ref resolved-config]
-  (build-flat context-ref resolved-config ps/identifier-ssh-key?))
+  [_ build-context resolved-config]
+  (build-flat build-context resolved-config ps/identifier-ssh-key?))
 
 (defmethod build! :flat-emails
-  [_ context-ref resolved-config]
-  (build-flat context-ref resolved-config ps/identifier-email?))
+  [_ build-context resolved-config]
+  (build-flat build-context resolved-config ps/identifier-email?))
 
 (defmethod build! :flat-uris
-  [_ context-ref resolved-config]
-  (build-flat context-ref resolved-config ps/identifier-uri?))
+  [_ build-context resolved-config]
+  (build-flat build-context resolved-config ps/identifier-uri?))
 
 (defmethod build! :tsv
-  [_ context-ref resolved-config]
+  [_ build-context resolved-config]
   (let [matching-resolved-contexts
-        (build! :edn context-ref resolved-config)
+        (build! :edn build-context resolved-config)
 
         lines
         (into [] 
