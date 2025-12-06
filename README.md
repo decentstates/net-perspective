@@ -6,6 +6,8 @@ See `./prspct/README.md` for the tool.
 
 ### Quickstart
 
+Pre-requisites:
+- nix with flakes enabled
 
 ```bash
 mkdir my-perspect

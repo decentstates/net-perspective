@@ -13,30 +13,7 @@ Example applications include:
 
 ## Getting started
 
-**Flake Template Method**
-
-Pre-requisites:
-- nix with flakes enabled
-
-```bash
-mkdir my-perspect
-cd my-perspect
-git init
-nix flake init -t git+https://git.sr.ht/~decentstates/net-perspective
-# Nix needs things added to git, may as well commit:
-git commit -am "Initial commit"
-
-# Using direnv:
-direnv allow
-
-# Otherwise
-nix develop
-
-prspct init --init-generate-keys --init-name "Your Name or Pseudonym" --init-email "Your email"
-
-# Send your public key to someone in the #underties network to get access to the server
-cat .prspct/keys/id_prspct.pub
-```
+See the quickstart in the README at the repo root.
 
 
 ## Development
@@ -67,71 +44,76 @@ Nix build:
     $ nix build .#prspct
 
 
-## Usage
+## config.edn
 
-Run `prspct init` in an empty directory to get an example starting `prspct.edn`
-config and setup the `.prspct` dir containing fetch state:
+This primarily configures where you fetch data from (a "source") and where you
+send your data to (a "publisher").
 
-```bash
-$ prspct init
-```
+The recommended init process comes with this file pre-configured.
 
-Fill in the placeholder fields in the script.
-
-Publish your relations as per your config:
-
-```bash
-$ prspct publish
-```
-
-Fetch relations from the sources listed in your config:
-
-```bash
-$ prspct fetch
-```
-
-Now that we have collected other peoples relations, we can build our
-perspectives, here are some examples:
-
-```
-$ prspct build flat-ssh-keys "#underties" > authorized_keys
-$ prspct build flat-uris "#contacts.*" | grep -E ".vcard$" | generate-contacts.sh
-$ prspct build tsv "#videos" | yt-dlp-download.sh
-$ prspct build flat-emails "#nix" > users-to-trust
-$ prspct build tsv "#nix.**" | generate-nix-awesome.sh
-$ prspct build tsv "#food.**" | map-tsv-urls.sh > food-map.html
-$ prspct build tsv "#products.headphones" > recommended-headphones.html
-```
 
 ## prspct.edn
 
 This is where you store your relations.
 
-The format of the config `prspct.edn` is as so:
+It is a series of context blocks:
+```clojure
+(ctx "#name.of.context" ...)
+```
 
-    ;; `ctx` defines a context.
-    ;; The base context must start with a hash.
-    ;; It can optionally have a map as the third parameter, this is the context-options map.
-    (ctx "#context.path" {  }
+Containing within them relations:
+```clojure
+; (colons start a comment)
 
-        ;; The rest of the ctx
-    
-        (-> "<identifier>" 
-        (->> "<identifier>" 
+; A single arrow means you only directly relate to them, not who they relate to (non-transitive.)
+(->> "ssh-key:[...]" "#name.of.context")
 
-        ;; N
-        (ctx "nested.path {
-        [nested-contexts or nested relations])
+; A double arrow means you relate to them, _and_ who they relate to (transitive.)
+(->> "ssh-key:[...]" "#name.of.context")
 
+; If you want to make the relation public, add `:public` to the end, this means it will get published.
+(->> "ssh-key:[...]" "#name.of.context" :public)
+
+
+; If you are relating to a uri, you likely won't care about the "object-context", so you can ommit it:
+(-> "uri:http://wikipedia.com/")
+; (It defaults to `#`, the "root context".)
+```
+
+Using identifiers all the time is a bit cumbersome, especially with ssh keys,
+instead we can use "context-includes": 
+```clojure
+;; We have an ordinary context which holds identifiers
+(ctx "#friends.smith"
+    ;; LINE A
+    (->> "ssh-key:ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOirp5rceowRPLnkCT2/vlTPgxtRWPeKdMIPnJ7ixJfi" "#self"))
+
+
+;; And when we want to reference all the identifiers in that context we use a context include:
+(ctx "#good-food"
+    ;; The context include looks like `:</the.context.you.want.to.include`, e.g.:
+    (->> :</friends.smith "#food")) ;; LINE B
+```
+
+The context include expands the relation to any identifiers under the context,
+in the above example, `LINE B` expands into at least this:
+```clojure
+(->> "ssh-key:ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOirp5rceowRPLnkCT2/vlTPgxtRWPeKdMIPnJ7ixJfi" "#self")
+```
+
+I say "at least", because if smith has any other identifiers in their "#self"
+context, that will get transitively included too, since `LINE A` uses the `->>`
+arrow. This can be a bit mind bending, but should become intuitive after a
+little use and is a powerful concept for managing identities.
+
+Tips:
+- Make sure the idents are prefixed with either: "email:", "ssh-key:", or
+  "uri:" or you will get an error.
+- "ssh-key:" must not have comments attached, must be exactly "ssh-key:[ssh
+  public key with comment stripped]", note there is no space between the colon
+  and the key.
 
 See `src/schema.clj` for the fully specified schemas.
-
-Nested contexts
-
-
-Add contexts:
-
-    (ctx "foo")
 
 
 ### Bugs

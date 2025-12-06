@@ -1,5 +1,4 @@
-{:sources 
-
+{:sources
  {:underties-source
   {:shell/args
    ;; TODO: Need to set the cwd to the parent of the config file...
