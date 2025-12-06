@@ -2,7 +2,7 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
     flake-utils.url = "github:numtide/flake-utils";
-    net-perspective.url = "git+https://git.sr.ht/~decentstates/net-perspective";
+    net-perspective.url = "git+https://git.sr.ht/~decentstates/net-perspective?ref=stable";
   };
 
   outputs = { self, nixpkgs, flake-utils, net-perspective, ... }:
