@@ -2,7 +2,7 @@
   (:require 
    [clojure.string]
    [clojure.java.io]
-   [clojure.tools.namespace.repl :refer [refresh]]
+   [clojure.tools.namespace.repl]
 
    [taoensso.telemere :as tel]
    [malli.dev]))
@@ -46,6 +46,9 @@
       (println (str "Altering namespace `" ns-sym "` with `after-in-ns`"))
       (after-in-ns)))
   (in-ns 'user))
+
+(defn refresh []
+  (clojure.tools.namespace.repl/refresh))
 
 (comment
   (refresh))
