@@ -22,6 +22,7 @@
 - [x] nil contexts
 - [x] shortening relations
 - [ ] *->> ->>* relations
+- [ ] Sign the message body rather than the parsed body.
 
 
 ### Bugs

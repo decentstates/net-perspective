@@ -120,9 +120,22 @@
 (def non-common-cli-spec
   {:spec
    (sorted-map
+     :build-idents
+     {:alias :i
+      :desc "User to build. Can use a :</context.include or provide an ident."
+      ;; WIPTODO: Manually test
+      :collect (fn [coll arg-value]
+                 (have! string? arg-value)
+                 (conj (or coll #{}) 
+                       (if (str/starts-with? arg-value ":")
+                         (keyword (subs arg-value 1))
+                         arg-value)))
+      :default #{:self}
+      :required true}
+
      :build-target
      {:desc (->> (methods user-commands/build!) keys (map name) sort (str/join ", "))
-       :coerce keyword
+       :coerce :keyword
        :default :edn
        :required true}
 
@@ -273,7 +286,7 @@
       (tel/event! ::middleware-eventer:finish)
       res)))
 
-(defn middleware-logging-level! [handler]
+(defn middleware-logging-level [handler]
   (fn [ctx]
     (let [log-level (get-in ctx [:opts :log-level])]
       (tel/with-min-level 
@@ -511,14 +524,22 @@
 (defn middleware-resolve-config [handler]
   (fn [ctx]
     (tel/event! ::middleware-resolve-config)
-    (let [opts (:opts ctx)
-          user-config {:user-contexts
-                       (load-user-relations (:user-relations-path opts))
+    (let [opts 
+          (:opts ctx)
 
-                       :user-config-options 
-                       (load-user-config-options (:user-config-options-path opts))}
-          fetched-publication-messages (message-transfer/load-fetch (:fetch-head-symlink-path opts))
-          resolved-config (resolution/resolve-config user-config fetched-publication-messages)]
+          user-config 
+          {:user-contexts
+           (load-user-relations (:user-relations-path opts))
+
+           :user-config-options 
+           (load-user-config-options (:user-config-options-path opts))}
+
+          ;; WIPTODO: Are these really needed here?
+          fetched-publication-messages
+          (message-transfer/load-fetch (:fetch-head-symlink-path opts))
+
+          resolved-config
+          (resolution/resolve-config user-config fetched-publication-messages)]
       (tel/spy! :debug resolved-config)
       (handler (merge ctx
                       {:user-config user-config
@@ -533,7 +554,7 @@
 
 (def common-middlewares
   (comp
-    middleware-logging-level!
+    middleware-logging-level
     middleware-eventer
     middleware-exception-handling
     middleware-help
@@ -671,15 +692,18 @@
       ::desc "Build a target perspective."
       ::usage "build target [build-context] [extra opts]"
       :fn (wrap-middlewares (fn [{:keys [opts resolved-config]}]
-                              (let [{:keys [build-target build-context]} opts
-                                    output (user-commands/build! build-target build-context resolved-config)
+                              (let [{:keys [build-target build-context build-idents]} opts
+                                    output (user-commands/build! build-target build-context build-idents resolved-config)
                                     serialize-fn (:serialize-fn (meta output))]
                                 (print (serialize-fn output))
                                 output))
                             [common-middlewares
                              middleware-resolve-config])
       ::cmd-spec 
-      (select-keys (:spec non-common-cli-spec) [:build-target :build-context])
+      (select-keys (:spec non-common-cli-spec) 
+                   [:build-target 
+                    :build-context
+                    :build-idents])
       
       :validate {:build-target (->> (methods user-commands/build!) keys set)
                  :build-context {:pred (m/validator #'ps/Context)}

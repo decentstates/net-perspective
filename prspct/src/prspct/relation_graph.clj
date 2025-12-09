@@ -20,8 +20,9 @@
     [prspct.schemas :as ps]))
 
 
-
 ;; TODO: look into jgrapht as a replacement
+
+(def RelGraph [:any])
 
 ;; ## derived graphs with preservation
 
@@ -398,7 +399,8 @@
 
         resolved-edge-globs
         (reduce (partial resolve-edge-globs g condensed-node->components)
-                (digraph) ordered-glob-edges-to-resolve)
+                (digraph) 
+                ordered-glob-edges-to-resolve)
 
         _ (tel/event! ::resolve-graph-globs:resolved-graph-globs)]
 

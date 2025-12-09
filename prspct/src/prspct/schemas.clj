@@ -1038,6 +1038,7 @@
 ;; ## "Working" Configuration
 ;; What we work with. A stricter subset of UserConfig
 ;; What we process UserConfig into.
+;; TODO: Rename to WorkingUserConfig
 
 (def WorkingContextConfig
   [:map

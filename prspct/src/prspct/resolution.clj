@@ -7,6 +7,8 @@
 
    [malli.core :as m]
 
+   [loom.graph]
+
    [prspct.relation-graph :as rel-graph]
    [prspct.publication]
    [prspct.schemas :as ps]])
@@ -123,16 +125,18 @@
 
 ;; Resolution
 
-(m/=> resolve-contexts [:=> [:cat [:vector #'ps/UserContext] [:vector #'ps/Relation]] 
-                            #'ps/ResolvedContexts])
-(defn resolve-contexts [user-contexts fetched-rels]
-  (tel/event! ::resolve-contexts:start)
+(m/=> resolve-relgraph [:=> [:cat [:vector #'ps/UserContext] [:vector #'ps/Relation]] 
+                        #'rel-graph/RelGraph])
+(defn resolve-relgraph 
+  [user-contexts fetched-rels]
+  (tel/event! ::resolve-graph:start)
   (let [initial-self-rels 
+        ;; Globbing may cause more self-rels to be created, hence initial vs resolved self-rels
         (into [] 
-             (mapcat (fn [{:keys [context relations]}]
-                       (mapv #(assoc % :relation/subject-pair [:self context])
-                             relations)))
-             user-contexts)
+              (mapcat (fn [{:keys [context relations]}]
+                        (mapv #(assoc % :relation/subject-pair [:self context])
+                              relations)))
+              user-contexts)
 
         glob-rels 
         (-> (concat fetched-rels initial-self-rels)
@@ -140,7 +144,7 @@
             rel-graph/resolve-graph-globs
             rel-graph/rel-graph->relations)
 
-        _ (tel/event! ::resolve-contexts:calculated-glob-rels)
+        _ (tel/event! ::resolve-graph:calculated-glob-rels)
 
         all-rels 
         (concat fetched-rels initial-self-rels glob-rels)
@@ -148,22 +152,41 @@
         g
         (rel-graph/relations->rel-graph all-rels)
 
-        _ (tel/event! ::resolve-contexts:generated-graph)
+        _ (tel/event! ::resolve-graph:generated-graph)]
+    g))
 
-        resolved-self-rels
-        (filterv (fn [rel] (= (first (:relation/subject-pair rel))
-                              :self))
-                all-rels)
 
+(m/=> relgraph->resolved-contexts [:=> [:cat #'rel-graph/RelGraph [:set #'ps/UserConfigIdentifier]] 
+                                   #'ps/ResolvedContexts])
+(defn relgraph->resolved-contexts [g idents-to-resolve]
+  (let [all-pairs 
+        (loom.graph/nodes g)
+
+        pairs-to-resolve
+        (filterv (fn [[ident _context]] 
+                   (contains? idents-to-resolve ident))
+                 all-pairs)
+        
+        _ (tel/event! ::relgraph->resolved-contexts:calculated-rels-to-resolve)
+  
         resolved-contexts
         (into {}
-             (map (fn [{:relation/keys [subject-pair]}]
-                    (let [[_ ctx] subject-pair]
-                      [ctx (rel-graph/rnode-reach subject-pair g)])))
-             resolved-self-rels)
+              (map (fn [subject-pair]
+                     (let [[_ ctx] subject-pair]
+                       [ctx (rel-graph/rnode-reach subject-pair g)])))
+              pairs-to-resolve)
 
-        _ (tel/event! ::resolve-contexts:resolved-contexts)]
+        _ (tel/event! ::relgraph->resolved-contexts:resolved-contexts)]
     resolved-contexts))
+
+(defn include-ident->idents [resolved-contexts include-ident]
+  (let [context-to-include
+        (ps/include-ident->internal-context include-ident)
+        
+        identities-to-include
+        (mapv first (get resolved-contexts context-to-include))]
+    identities-to-include))
+  
 
 (defn resolve-include-ident-rel [resolved-contexts rel]
   (let [context-to-include
@@ -191,32 +214,34 @@
                    (vec (distinct (apply concat relations includes)))))))
     user-contexts))
 
-(m/=> resolve-contexts-with-includes [:=> [:cat [:vector #'ps/UserContext] [:vector #'ps/Relation] :int] 
-                                         [:tuple [:vector #'ps/WorkingContext] #'ps/ResolvedContexts]])
-(defn resolve-contexts-with-includes [user-contexts fetched-rels max-iterations]
+(m/=> resolve-fixed-point-contexts-relgraph [:=> [:cat [:vector #'ps/UserContext] [:vector #'ps/Relation] [:set #'ps/UserConfigIdentifier] :int] 
+                                             [:tuple [:vector #'ps/WorkingContext] #'rel-graph/RelGraph]])
+(defn resolve-fixed-point-contexts-relgraph [user-contexts fetched-rels idents-to-resolve max-iterations]
   ;; Fixed point resolution of includes.
   (loop [i 0
          user-contexts user-contexts
          previous-resolved-contexts nil
-         resolved-contexts (resolve-contexts user-contexts fetched-rels)]
-    (tel/event! ::resolve-contexts-with-includes:iteration-start
+         g (resolve-relgraph user-contexts fetched-rels)]
+    (tel/event! ::resolve-fixed-point-contexts-relgraph:iteration-start
                 {:data {:i i}})
-    (cond
-      (= previous-resolved-contexts resolved-contexts)
-      (do (tel/event! ::resolve-contexts-with-includes:fixed-point-found)
-          [user-contexts resolved-contexts])
+    (let [resolved-contexts (relgraph->resolved-contexts g idents-to-resolve)]
+      (cond
+        (= previous-resolved-contexts resolved-contexts)
+        (do (tel/event! ::resolve-fixed-point-contexts-relgraph:fixed-point-found)
+            [user-contexts g])
 
-      (<= max-iterations (inc i))
-      (do (tel/event! ::resolve-contexts-with-includes:fixed-point-hit-max-iterations
-                      :warn)
-          [user-contexts resolved-contexts])
+        (<= max-iterations (inc i))
+        (do (tel/event! ::resolve-fixed-point-contexts-relgraph:fixed-point-hit-max-iterations
+                        :warn)
+            [user-contexts g])
 
-      :else
-      (let [new-user-contexts (user-context-with-include-rels user-contexts resolved-contexts)]
-        (recur (inc i)
-               new-user-contexts
-               resolved-contexts
-               (resolve-contexts new-user-contexts fetched-rels))))))
+        :else
+        (let [new-user-contexts (user-context-with-include-rels user-contexts resolved-contexts)]
+          (recur (inc i)
+                 new-user-contexts
+                 resolved-contexts
+                 (resolve-relgraph new-user-contexts fetched-rels)))))))
+
 
 (m/=> resolve-config [:=> [:cat #'ps/UserConfig [:seqable #'ps/AnyMessage]] #'ps/WorkingConfig])
 (defn resolve-config [user-config fetched-publication-messages]
@@ -265,12 +290,15 @@
         fetched-rels 
         (into [] (mapcat #(get-in % [:body :publication/relations]) passed-publication-messages))
 
-        [working-contexts resolved-contexts]
+        [working-contexts relgraph]
         ;; WIPTODO: Get max iterations from config-options
-        (resolve-contexts-with-includes user-contexts fetched-rels 10)
+        (resolve-fixed-point-contexts-relgraph user-contexts fetched-rels #{:self} 10)
 
         _ (tel/event! ::resolve-config:resolved-contexts)]
-    {:user-config-options (:user-config-options user-config)
-     :publication-message-stats publication-message-stats
-     :working-contexts working-contexts
-     :resolved-contexts resolved-contexts}))
+   {:user-config-options (:user-config-options user-config)
+    :publication-message-stats publication-message-stats
+    :working-contexts working-contexts
+    ;; WIPTODO: Move out of here and simplify
+    :relgraph relgraph
+    ;; WIPTODO: Remove resolved-contexts from here
+    :resolved-contexts (relgraph->resolved-contexts relgraph #{:self})}))
