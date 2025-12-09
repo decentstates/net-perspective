@@ -208,22 +208,22 @@
                      (println)
                      (println (str "See `" last-publish-info-path "` for more info.")))}))))
                     
+(defn expand-idents [resolved-self-contexts idents]
+  (into idents
+        (comp
+          (filter ps/include-ident?)
+          (mapcat (partial resolution/include-ident->idents resolved-self-contexts)))
+        idents))
 
 (defmulti build! (fn [target _build-context _build-idents _resolved-config] target))
 
 (defmethod build! :edn
   [_ build-context build-idents resolved-config]
   (let [resolved-self-contexts 
-        (resolution/relgraph->resolved-contexts
-          (:relgraph resolved-config)
-          #{:self})
+        (:resolved-self-contexts resolved-config)
 
         expanded-build-idents
-        (into build-idents
-              (comp
-                (filter ps/include-ident?)
-                (mapcat (partial resolution/include-ident->idents resolved-self-contexts)))
-              build-idents)
+        (expand-idents resolved-self-contexts build-idents)
 
         resolved-contexts
         (if (= #{:self} build-idents)
@@ -303,3 +303,36 @@
                       (doseq [line lines]
                         (apply println line))))]
     (with-meta lines {:serialize-fn serialize-fn})))
+
+(defmethod build! :relations.edn
+  [_ build-context build-idents resolved-config]
+  (let [matching-resolved-contexts
+        (build! :edn build-context build-idents resolved-config)
+
+        expanded-build-idents
+        (expand-idents (:resolved-self-contexts resolved-config) build-idents)
+
+        serialize-fn
+        (fn [ctxs] 
+          (with-out-str 
+            (println ";; resolved relations for:")
+            (doseq [ident expanded-build-idents]
+              (println ";; -" ident))
+            (doseq [ctx ctxs]
+             (println)
+             (binding [clojure.pprint/*print-right-margin* 150]
+               (pprint ctx)))))
+
+        dsl
+        (mapv 
+          (fn [[context object-pairs]]
+            (apply
+              dsl/ctx 
+              (ps/internal-context->context context)
+              (mapv
+                (fn [[obj-ident obj-context]]
+                  (dsl/-> obj-ident (ps/internal-context->context obj-context) :public))
+                object-pairs)))
+          
+          matching-resolved-contexts)]
+    (with-meta dsl {:serialize-fn serialize-fn})))
