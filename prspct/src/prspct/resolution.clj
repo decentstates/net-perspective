@@ -207,7 +207,7 @@
        (update user-context :relations 
                (fn [relations]
                  (let [include-relations 
-                       (filterv ps/is-include-ident-rel? relations)
+                       (filterv ps/include-ident-rel? relations)
                        
                        includes
                        (mapv (partial resolve-include-ident-rel resolved-contexts) include-relations)]

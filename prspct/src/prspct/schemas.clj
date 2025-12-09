@@ -749,20 +749,20 @@
        :keyword
        :qualified-keyword])
 
-(defn is-include-ident? [ident]
+(defn include-ident? [ident]
   (and (qualified-keyword? ident)
        (= "<" (namespace ident))))
 
 (defn include-ident->internal-context [ident]
-  (have is-include-ident? ident)
+  (have include-ident? ident)
   (str/split (name ident) #"\." -1))
 
 (defn internal-context->include-ident [internal-context]
   (have! not-empty internal-context)
   (keyword "<" (str/join "." internal-context)))
 
-(defn is-include-ident-rel? [rel]
-  (-> rel :relation/object-pair first is-include-ident?))
+(defn include-ident-rel? [rel]
+  (-> rel :relation/object-pair first include-ident?))
 
 (defn include-ident-rel->internal-context [rel]
   (-> rel :relation/object-pair first include-ident->internal-context))
@@ -1007,7 +1007,7 @@
         (into #{}
               (comp
                 (mapcat :relations)
-                (filter is-include-ident-rel?)
+                (filter include-ident-rel?)
                 (map include-ident-rel->internal-context))
               user-config)
 

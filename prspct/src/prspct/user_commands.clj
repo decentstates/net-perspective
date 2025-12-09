@@ -221,7 +221,7 @@
         expanded-build-idents
         (into build-idents
               (comp
-                (filter ps/is-include-ident?)
+                (filter ps/include-ident?)
                 (mapcat (partial resolution/include-ident->idents resolved-self-contexts)))
               build-idents)
 
