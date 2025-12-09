@@ -294,11 +294,11 @@
         ;; WIPTODO: Get max iterations from config-options
         (resolve-fixed-point-contexts-relgraph user-contexts fetched-rels #{:self} 10)
 
-        _ (tel/event! ::resolve-config:resolved-contexts)]
+        _ (tel/event! ::resolve-config:resolved-contexts-and-relgraph)]
    {:user-config-options (:user-config-options user-config)
     :publication-message-stats publication-message-stats
     :working-contexts working-contexts
     ;; WIPTODO: Move out of here and simplify
     :relgraph relgraph
     ;; WIPTODO: Remove resolved-contexts from here
-    :resolved-contexts (relgraph->resolved-contexts relgraph #{:self})}))
+    :resolved-self-contexts (relgraph->resolved-contexts relgraph #{:self})}))

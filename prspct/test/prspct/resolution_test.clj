@@ -68,7 +68,7 @@
               #:relation{:object-pair ["email:d@test.com" ["null"]]
                          :transitive? false,
                          :public? true}]}]
-           :resolved-contexts
+           :resolved-self-contexts
            {["self" "contacts" "d"]
             #{["email:d@test.com" ["self"]]},
             ["food"] 
@@ -77,7 +77,7 @@
             #{[:</self.contacts.d ["null"]] ["email:d@test.com" ["null"]]}}}]
            
       (is (= expected
-             (select-keys res [:resolved-contexts :working-contexts]))))))
+             (select-keys res [:resolved-self-contexts :working-contexts]))))))
 
 (comment
   (tel/with-min-level :info

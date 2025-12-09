@@ -1068,6 +1068,7 @@
   [:map
    [:user-config-options #'UserConfigOptions]
    [:working-contexts [:vector #'WorkingContext]]
-   [:resolved-contexts #'ResolvedContexts]])
+   ;; TODO Rename to resolved-self-contexts
+   [:resolved-self-contexts #'ResolvedContexts]])
 
 
