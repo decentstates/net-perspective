@@ -141,8 +141,8 @@
                                   publish-config 
                                   publish-identity 
                                   publish-instant)
-                                (publication/sign-publication publish-identity)
                                 (publication/publication-message publish-identity)
+                                (publication/sign-publication-message publish-identity)
                                 (publication/publication-message-envelope publisher))))))
                 (filter identity))
               publish-config-keyword->working-contexts)]

@@ -677,7 +677,7 @@
    [:id #'IdentifierSSHKey]
    [:hash-algorithm [:enum "sha256"]]
    [:hash :string]
-   [:signature-method [:enum "ssh-sign-whole-msg"]]
+   [:signature-method [:enum "ssh-keygen-sign-whole-message"]]
    [:signature :string]])
 
 (def publication-signature-transformer
@@ -712,8 +712,7 @@
    [:publication/valid-until [:time/instant]]
    [:publication/invalidates-previous-publications-until [:time/instant]]
    [:publication/self-identifier #'Identifier]
-   [:publication/relations [:vector #'Relation]]
-   [:publication/signature {:optional true} #'EncodedPublicationSignature]])
+   [:publication/relations [:vector #'Relation]]])
 
 ;; REVIEW: What should be here and what should be in publication, should this exist.
 (def PublicationMessageHeaders
@@ -733,7 +732,8 @@
    [:x-np-client [:re non-control-ascii-except-clrf-re]]
    [:x-np-id #'Identifier]
    [:x-np-timestamp :time/instant]
-   [:x-np-intent [:enum :publication]]])
+   [:x-np-intent [:enum :publication]]
+   [:x-np-signature {:optional true} #'EncodedPublicationSignature]])
 
 (def PublicationMessage
   (edn-message-schema #'PublicationMessageHeaders #'Publication))

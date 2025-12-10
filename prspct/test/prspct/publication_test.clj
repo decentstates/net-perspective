@@ -12,6 +12,7 @@
     [prspct.lib.utils :as utils]
     [prspct.schemas :as ps]
     [prspct.publication :as sut]
+    [prspct.message-transfer :as message-transfer]
     [prspct.test-utils]))
 
 (prspct.test-utils/deftest-ns-schemas-test)
@@ -35,37 +36,58 @@
 (deftest publication-signature-test
   (utils/with-temp-key-pairs [pair {}]
     (checking "symmetry" 10
-              [publication (mg/generator #'ps/Publication)]
-        (let [;; The generated publication sometimes contains :publication/signature
-              publication
-              (-> publication
-                  (dissoc :publication/signature)
-                  (assoc :publication/self-identifier
-                         (ps/ssh-public-key->identifier-ssh (slurp (:public pair)))))
+              [publication-message (mg/generator #'ps/PublicationMessage)]
+        (utils/with-temp-dir [d {:no-delete true}]
+            (let [publication-message
+                  (-> publication-message
+                      (update :headers dissoc :x-np-signature)
+                      (assoc-in [:body :publication/self-identifier]
+                                (ps/ssh-public-key->identifier-ssh (slurp (:public pair))))
+                      (assoc-in [:headers :x-np-id]
+                                (ps/ssh-public-key->identifier-ssh (slurp (:public pair)))))
 
-              publish-to-config 
-              {:publisher :main
-               :name "Alice"
-               :email "alice@example.com"
-               :ssh-key-id/public-key-path (:public pair)
-               :ssh-key-id/private-key-path (:private pair)}
+                  save-message!
+                  (fn [m]
+                    (assoc-in m [:headers :prspct.message-transfer/file-path]
+                              (message-transfer/write-edn-message! 
+                                ps/PublicationMessage
+                                m
+                                d)))
 
-              signed-publication
-              (sut/sign-publication publish-to-config publication)
+                  publish-to-config 
+                  {:publisher :main
+                   :name "Alice"
+                   :email "alice@example.com"
+                   :ssh-key-id/public-key-path (:public pair)
+                   :ssh-key-id/private-key-path (:private pair)}
 
-              corrupted-signed-publication
-              (assoc signed-publication :publication/self-identifier "email:charlie@example.com")
+                  signed-publication-message
+                  (save-message!
+                    (sut/sign-publication-message publish-to-config publication-message))
 
-              corrupted-signature-signed-publication
-              (assoc signed-publication :publication/signature "asdf")]
-          (is (= true 
-                 (:valid? (sut/verify-publication signed-publication))))
-          (is (= false 
-                 (:valid? (sut/verify-publication corrupted-signed-publication))))
-          (is (= false 
-                 (:valid? (sut/verify-publication corrupted-signature-signed-publication))))))))
+                  corrupted-relations-signed-publication-message
+                  (-> signed-publication-message
+                      (assoc-in [:body :publication/relations] ["corrupted-relations-data"])
+                      save-message!)
+
+                  corrupted-self-identifier-signed-publication-message
+                  (-> signed-publication-message
+                      (assoc-in [:body :publication/self-identifier] "email:charlie@example.com")
+                      save-message!)
+
+                  corrupted-signature-signed-publication-message
+                  (-> signed-publication-message
+                      (assoc-in [:headers :x-np-signature] "asdf")
+                      save-message!)]
+              (is (= {:valid? true} 
+                     (sut/verify-publication-message signed-publication-message)))
+              (is (= {:valid? false :issues [:failed-signature-verification]}
+                     (sut/verify-publication-message corrupted-relations-signed-publication-message)))
+              (is (= {:valid? false :issues [:non-matching-self-identifier]}
+                     (sut/verify-publication-message corrupted-self-identifier-signed-publication-message)))
+              (is (= {:valid? false :issues [:invalid-publication-signature]}
+                     (sut/verify-publication-message corrupted-signature-signed-publication-message))))))))
 
 (comment
   (tel/with-min-level :debug
     (publication-signature-test)))
-

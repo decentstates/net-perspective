@@ -68,12 +68,14 @@
         sig
         (:public pair)))))
 
-;; Very rough draft, based off of dkim
-(defn sign-publication [publish-identity publication]
-  (have! #(not (contains? % :publication/signature)) publication)
-  (let [publication-string 
-        (ps/encode-edn-message-body #'ps/PublicationMessage publication)
-        
+(defn sign-publication-message [publish-identity publication-message]
+  (have! #(not (contains? % :x-np-signature)) (:headers publication-message))
+  (let [publication-string
+        (->> publication-message 
+            (ps/edn-message->eml ps/PublicationMessage)
+            ps/eml->simple-message
+            :body)
+            
         id
         (publish-identity->ssh-key-id publish-identity)
 
@@ -81,7 +83,8 @@
         (utils/sha256 publication-string)
     
         ssh-signature
-        (ssh-signature publication-string (-> publish-identity :ssh-key-id/private-key-path))
+        (ssh-signature publication-string 
+                       (-> publish-identity :ssh-key-id/private-key-path))
 
         publication-signature
         (m/coerce #'ps/PublicationSignature
@@ -89,96 +92,46 @@
            :id id
            :hash-algorithm "sha256"
            :hash hash
-           :signature-method "ssh-sign-whole-msg"
+           :signature-method "ssh-keygen-sign-whole-message"
            :signature ssh-signature})
         
         encoded-publication-signature
         (ps/encode-publication-signature publication-signature)]
-    (assoc publication :publication/signature  encoded-publication-signature)))
+    (assoc-in publication-message [:headers :x-np-signature] encoded-publication-signature)))
 
-(defn verify-publication [publication]
-  (let [publication-without-signature
-        (dissoc publication :publication/signature)
+(defn verify-publication-message [publication-message]
+  (let [publication-string
+        (-> publication-message 
+            :headers
+            :prspct.message-transfer/file-path
+            slurp
+            ps/eml->simple-message
+            :body)
 
-        publication-string 
-        (ps/encode-edn-message-body #'ps/PublicationMessage publication-without-signature)
-        
         publication-signature
-        (-> publication :publication/signature ps/decode-publication-signature)
+        (ps/decode-publication-signature
+          (get-in publication-message [:headers :x-np-signature]))
 
         valid-publication-signature?
         (m/validate #'ps/PublicationSignature publication-signature)]
 
-    (if-not valid-publication-signature?
-      {:valid? false
-       :issues [:invalid-publication-signature]}
-      (let [public-key
-            (-> publication-signature :id ps/identifier-ssh-key->ssh-key)
+      (if-not valid-publication-signature?
+        {:valid? false
+         :issues [:invalid-publication-signature]}
+        (let [public-key
+              (-> publication-signature :id ps/identifier-ssh-key->ssh-key)
 
-            matching-self-identifier?
-            (= (:publication/self-identifier publication)
-               (:id publication-signature))
+              matching-self-identifier?
+              (= (get-in publication-message [:body :publication/self-identifier])
+                 (:id publication-signature))
 
-            ssh-signature
-            (-> publication-signature :signature)]
-        (if-not matching-self-identifier?
-          {:valid? false :issues [:non-matching-self-identifier]}
-          (if-not (verify-ssh-signature publication-string ssh-signature public-key)
-            {:valid? false :issues [:failed-signature-verification]}
-            {:valid? true}))))))
-
-(comment
-  (require '[malli.generator :as mg])
-  (let [publication (mg/generate #'ps/Publication)]
-    (utils/with-temp-key-pairs [pair {}]
-      (let [publication
-            (-> publication
-                (assoc :publication/relations [])
-                (dissoc :publication/signature))
-
-            publish-to-config 
-            {:publisher :main
-             :name "Alice"
-             :email "alice@example.com"
-             :ssh-key-id/public-key-path (:public pair)
-             :ssh-key-id/private-key-path (:private pair)}
-
-            signed-publication
-            (sign-publication publish-to-config publication)
-
-            signed-publication-0
-            (sign-publication publish-to-config (dissoc publication :publication/signature))
-
-            signed-publication-1
-            (sign-publication publish-to-config publication)]
-        (verify-publication signed-publication)
-        [signed-publication-0
-         signed-publication-1])))
-  (utils/with-temp-key-pairs [pair {}]
-    (let [publication
-          #:publication{:version :alpha-do-not-spread, 
-                        :valid-from "1970-01-01T00:00:00Z",
-                        :valid-until "1970-01-01T00:00:00Z",
-                        :self-identifier "email:u-0000@example.com",
-                        :relations []}
-
-          publication
-          (-> publication
-              (dissoc :publication/signature)
-              (assoc :publication/self-identifier
-                     (ps/ssh-public-key->identifier-ssh (slurp (:public pair)))))
-
-          publish-to-config 
-          {:publisher :main
-           :name "Alice"
-           :email "alice@example.com"
-           :ssh-key-id/public-key-path (:public pair)
-           :ssh-key-id/private-key-path (:private pair)}
-
-          signed-publication
-          (sign-publication publish-to-config publication)]
-      (verify-publication signed-publication))))
-
+              ssh-signature
+              (-> publication-signature :signature)]
+          (if-not matching-self-identifier?
+            {:valid? false :issues [:non-matching-self-identifier]}
+            (if-not (verify-ssh-signature publication-string ssh-signature public-key)
+              {:valid? false :issues [:failed-signature-verification]}
+              {:valid? true}))))))
 
 (m/=> publishable-relations [:=> [:cat #'ps/Identifier #'ps/WorkingContext] [:vector #'ps/Relation]])
 (defn publishable-relations [self-identifier working-context]
@@ -259,8 +212,7 @@
 
 (defn message-filter-valid-signature 
   [publication-message]
-  (let [publication (:body publication-message)
-        ret (prspct.publication/verify-publication publication)]
+  (let [ret (prspct.publication/verify-publication-message publication-message)]
     (tel/spy! :debug ret)
     (get ret :valid? false)))
 
