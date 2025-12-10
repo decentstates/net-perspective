@@ -234,3 +234,167 @@
     {:publisher publisher
      :message publication-message
      :message-schema ps/PublicationMessage})
+
+
+;; ## Message filtering
+
+;; TODO: test
+
+(defn message-filter-valid-publication-message [publication-message]
+  (get-in publication-message [:headers :prspct.message-transfer/publication-message?]))
+
+(defn message-filter-valid-date [now-instant]
+  (fn [publication-message]
+    (and
+      (or
+        (.isBefore
+          ^java.time.Instant (get-in publication-message [:body :publication/valid-from])
+          ^java.time.Instant now-instant)
+        (.equals
+          ^java.time.Instant (get-in publication-message [:body :publication/valid-from])
+          ^java.time.Instant now-instant))
+      (.isBefore
+        ^java.time.Instant now-instant
+        ^java.time.Instant (get-in publication-message [:body :publication/valid-until])))))
+
+(defn message-filter-valid-signature 
+  [publication-message]
+  (let [publication (:body publication-message)
+        ret (prspct.publication/verify-publication publication)]
+    (tel/spy! :debug ret)
+    (get ret :valid? false)))
+
+(defn message-filter-matching-self-identifier [publication-message]
+  (let [message-identifier 
+        (get-in publication-message [:headers :x-np-id])
+
+        publication-identifier 
+        (get-in publication-message [:body :publication/self-identifier])
+
+        subject-identifiers
+        (set (mapv
+               #(-> % :relation/subject-pair first)
+               (get-in publication-message [:body :publication/relations])))
+        
+        all-identifiers
+        (conj subject-identifiers
+              message-identifier
+              publication-identifier)]
+    (= 1 (count all-identifiers))))
+
+(defn message-invalidation [publication-message]
+  (when
+    (and (:message-filter:valid-publication-message? publication-message)
+         (:message-filter:valid-signature? publication-message)
+         (:message-filter:matching-self-identifier? publication-message))
+    {:identifier
+     (get-in publication-message [:body :publication/self-identifier])
+     
+     :invalidate-until
+     (get-in publication-message [:body :publication/invalidates-previous-publications-until])}))
+
+(defn message-invalidated? [publication-message invalidation]
+  (let [{:keys [identifier invalidate-until]} invalidation]
+    (and (= identifier (get-in publication-message [:body :publication/self-identifier]))
+         (.isBefore 
+           ^java.time.Instant (get-in publication-message [:body :publication/valid-from])
+           ^java.time.Instant invalidate-until))))
+
+(defn message-filter-invalidations [invalidations]
+  (fn [publication-message]
+    (not-any? (partial message-invalidated? publication-message)
+              invalidations)))
+
+(defn message-filter-self 
+  "Filter out messages from yourself"
+  [self-identifiers]
+  (fn [publication-message]
+    ;; TODO: Filter 
+    ;; Detect keywords in pairs...
+    ;; Should be in spec...
+    publication-message))
+
+(defn independent-tests [now-instant]
+  (let [and-tests
+        ;; Like every-pred, but returns nil if all preds do not run...
+        (fn and-tests 
+          ([p1 p2]
+           (fn [x]
+             (when (p1 x)
+               (p2 x))))
+          ([p1 p2 & more]
+           (fn [x]
+             (when (p1 x)
+               (apply and-tests p2 more)))))]
+
+    {:message-filter:valid-publication-message? 
+     #'message-filter-valid-publication-message
+
+     :message-filter:valid-signature? 
+     (and-tests #'message-filter-valid-publication-message
+                #'message-filter-valid-signature)
+
+     :message-filter:matching-self-identifier? 
+     (and-tests #'message-filter-valid-publication-message
+                #'message-filter-matching-self-identifier)
+
+     :message-filter:valid-date?
+     (and-tests #'message-filter-valid-publication-message
+                (message-filter-valid-date now-instant))}))
+
+(defn apply-tests [publication-message tests]
+  (reduce (fn [message [k p]]
+            (assoc-in message [:headers k] (p message)))
+          publication-message
+          tests))
+
+;; TODO: Better naming for all this...
+(defn flag-messages [now-instant publication-messages]
+  (let [indep-tests
+        (independent-tests now-instant)
+        
+        tested-messages
+        (mapv #(apply-tests % indep-tests) 
+              publication-messages)
+        
+        ;; NOTE: To generate validations we need tested messages to ensure e.g. signatures.
+        invalidations
+        (into []
+              (comp
+                (map message-invalidation)
+                (filter identity))
+              tested-messages)
+
+        invalidation-tested-messages
+        (mapv
+          (fn [publication-message]
+            (as-> publication-message $
+              (assoc-in $ [:headers ::message-invalidated-by] 
+                        (filterv (partial message-invalidated? publication-message)
+                                 invalidations))
+              (assoc-in $ [:headers :message-filter:not-invalidated?]
+                        (empty? (get-in $ [:headers ::message-invalidated-by])))))
+          tested-messages)
+        
+        ;; NOTE: All filters are expected to be true for a full pass
+        all-flags
+        (-> #{}
+          (into (keys indep-tests))
+          (conj :message-filter:not-invalidated?))
+        
+        final-tested-messages
+        (mapv 
+          (fn [publication-message]
+            (assoc-in
+              publication-message
+              [:headers ::message-filters-all-pass?]
+              (reduce (fn [acc k]
+                        (and acc (get-in publication-message [:headers k])))
+                      true
+                      all-flags)))
+          invalidation-tested-messages)]
+              
+    final-tested-messages))
+
+(defn passing-message? [publication-message]
+  (get-in publication-message [:headers ::message-filters-all-pass?]))

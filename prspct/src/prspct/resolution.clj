@@ -10,7 +10,7 @@
    [loom.graph]
 
    [prspct.relation-graph :as rel-graph]
-   [prspct.publication]
+   [prspct.publication :as publication]
    [prspct.schemas :as ps]])
 
 
@@ -51,76 +51,6 @@
 
 ;; ## Publication Message filters
 ;; TODO: test
-
-(defn message-filter-valid-publication-message [publication-message]
-  (get-in publication-message [:headers :prspct.message-transfer/publication-message?]))
-
-(defn message-filter-valid-date [now-instant]
-  (fn [publication-message]
-    (and
-      (or
-        (.isBefore
-          ^java.time.Instant (get-in publication-message [:body :publication/valid-from])
-          ^java.time.Instant now-instant)
-        (.equals
-          ^java.time.Instant (get-in publication-message [:body :publication/valid-from])
-          ^java.time.Instant now-instant))
-      (.isBefore
-        ^java.time.Instant now-instant
-        ^java.time.Instant (get-in publication-message [:body :publication/valid-until])))))
-
-(defn message-filter-valid-signature 
-  [publication-message]
-  (let [publication (:body publication-message)
-        ret (prspct.publication/verify-publication publication)]
-    (tel/spy! :debug ret)
-    (get ret :valid? false)))
-
-(defn message-filter-matching-self-identifier [publication-message]
-  (let [message-identifier 
-        (get-in publication-message [:headers :x-np-id])
-
-        publication-identifier 
-        (get-in publication-message [:body :publication/self-identifier])
-
-        subject-identifiers
-        (set (mapv
-               #(-> % :relation/subject-pair first)
-               (get-in publication-message [:body :publication/relations])))
-        
-        all-identifiers
-        (conj subject-identifiers
-              message-identifier
-              publication-identifier)]
-    (= 1 (count all-identifiers))))
-
-(defn message-invalidation [publication-message]
-  {:identifier
-   (get-in publication-message [:body :publication/self-identifier])
-   
-   :invalidate-until
-   (get-in publication-message [:body :publication/invalidates-previous-publications-until])})
-
-(defn message-invalidated? [publication-message invalidation]
-  (let [{:keys [identifier invalidate-until]} invalidation]
-    (and (= identifier (get-in publication-message [:body :publication/self-identifier]))
-         (.isBefore 
-           ^java.time.Instant (get-in publication-message [:body :publication/valid-from])
-           ^java.time.Instant invalidate-until))))
-
-(defn message-filter-invalidations [invalidations]
-  (fn [publication-message]
-    (not-any? (partial message-invalidated? publication-message)
-              invalidations)))
-
-(defn message-filter-self 
-  "Filter out messages from yourself"
-  [self-identifiers]
-  (fn [publication-message]
-    ;; TODO: Filter 
-    ;; Detect keywords in pairs...
-    ;; Should be in spec...
-    publication-message))
 
 
 ;; Resolution
@@ -243,36 +173,19 @@
                  (resolve-relgraph new-user-contexts fetched-rels)))))))
 
 
+
 (m/=> resolve-config [:=> [:cat #'ps/UserConfig [:seqable #'ps/AnyMessage]] #'ps/WorkingConfig])
 (defn resolve-config [user-config fetched-publication-messages]
   (tel/event! ::resolve-config:start)
-  (let [now-instant
+  (let [;; TODO: Pass time through
+        now-instant
         (java.time.Instant/now)
 
-        ;; TODO: Test message filtering
-        ;; TODO: Move to it's own function
-        message-filters
-        [message-filter-valid-publication-message
-         message-filter-valid-signature
-         message-filter-matching-self-identifier]
+        flagged-publication-messages
+        (publication/flag-messages now-instant fetched-publication-messages)
 
         passed-publication-messages
-        (filter (apply every-pred message-filters)
-                fetched-publication-messages)
-
-        ;; NOTE: Need valid and signed messages in order to extract invalidations
-        invalidations
-        (mapv message-invalidation passed-publication-messages)
-
-        passed-publication-messages
-        (filter 
-          (message-filter-invalidations invalidations)
-          passed-publication-messages)
-
-        passed-publication-messages
-        (filter
-          (message-filter-valid-date now-instant)
-          passed-publication-messages)
+        (filter publication/passing-message? flagged-publication-messages)
 
         publication-message-stats
         {:total (count fetched-publication-messages)
@@ -291,14 +204,15 @@
         (into [] (mapcat #(get-in % [:body :publication/relations]) passed-publication-messages))
 
         [working-contexts relgraph]
-        ;; WIPTODO: Get max iterations from config-options
+        ;; TODO: Get max iterations from config-options
         (resolve-fixed-point-contexts-relgraph user-contexts fetched-rels #{:self} 10)
 
         _ (tel/event! ::resolve-config:resolved-contexts-and-relgraph)]
+   (doseq [m flagged-publication-messages]
+     (when-not (publication/passing-message? flagged-publication-messages)
+       (tel/trace! ::filtered-publication-message (:headers m))))
    {:user-config-options (:user-config-options user-config)
     :publication-message-stats publication-message-stats
     :working-contexts working-contexts
-    ;; WIPTODO: Move out of here and simplify
     :relgraph relgraph
-    ;; WIPTODO: Remove resolved-contexts from here
     :resolved-self-contexts (relgraph->resolved-contexts relgraph #{:self})}))

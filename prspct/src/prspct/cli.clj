@@ -123,7 +123,6 @@
      :build-idents
      {:alias :i
       :desc "User to build. Can use a :</context.include or provide an ident."
-      ;; WIPTODO: Manually test
       :collect (fn [coll arg-value]
                  (have! string? arg-value)
                  (conj (or coll #{}) 
@@ -534,7 +533,7 @@
            :user-config-options 
            (load-user-config-options (:user-config-options-path opts))}
 
-          ;; WIPTODO: Are these really needed here?
+          ;; TODO: Move processing of messages around here
           fetched-publication-messages
           (message-transfer/load-fetch (:fetch-head-symlink-path opts))
 
