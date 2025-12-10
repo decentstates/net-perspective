@@ -175,13 +175,9 @@
 
 
 (m/=> resolve-config [:=> [:cat #'ps/UserConfig [:seqable #'ps/AnyMessage]] #'ps/WorkingConfig])
-(defn resolve-config [user-config fetched-publication-messages]
+(defn resolve-config [user-config now-instant fetched-publication-messages]
   (tel/event! ::resolve-config:start)
-  (let [;; TODO: Pass time through
-        now-instant
-        (java.time.Instant/now)
-
-        flagged-publication-messages
+  (let [flagged-publication-messages
         (publication/flag-messages now-instant fetched-publication-messages)
 
         passed-publication-messages

@@ -95,11 +95,8 @@
                    (println (str "rm '" current-fetch-link "' && ln -s '" previous-fetch-head "' '" current-fetch-link "' ;")))}))))
 
 
-(defn envelopes [resolved-config]
-  (let [publish-instant
-        (java.time.Instant/now)
-
-        publish-config-keyword->working-contexts
+(defn envelopes [resolved-config publish-instant]
+  (let [publish-config-keyword->working-contexts
         (utils/multigroup-by 
           (fn [working-context]
             (or
@@ -148,15 +145,15 @@
               publish-config-keyword->working-contexts)]
     envelopes))
 
-(defn publications! [resolved-config publications-output-dir]
-  (let [envelopes (envelopes resolved-config)]
+(defn publications! [resolved-config now-instant publications-output-dir]
+  (let [envelopes (envelopes resolved-config now-instant)]
     (tel/event! ::publications!:produced-envelopes)
     (message-transfer/write-edn-message-envelopes! envelopes publications-output-dir)
     (tel/event! ::publications!:wrote-envelopes)))
 
-(defn publish! [resolved-config last-publish-info-path]
+(defn publish! [resolved-config now-instant last-publish-info-path]
   (let [envelopes
-        (envelopes resolved-config)
+        (envelopes resolved-config now-instant)
 
         _ (tel/event! ::publish!:produced-envelopes)
 

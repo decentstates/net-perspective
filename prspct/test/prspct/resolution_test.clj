@@ -14,7 +14,9 @@
 
     [prspct.schemas :as ps]
     [prspct.test-utils]
-    [prspct.resolution :as sut]))
+    [prspct.resolution :as sut])
+  (:import
+    java.time.Instant))
 
 (prspct.test-utils/deftest-ns-schemas-test)
 
@@ -34,8 +36,11 @@
           {:user-contexts
            (ps/user-relations-dsl->user-config dsl)}
 
+          now-instant
+          (java.time.Instant/now)
+
           res 
-          (sut/resolve-config user-config [])
+          (sut/resolve-config user-config now-instant [])
 
           expected
           {:working-contexts

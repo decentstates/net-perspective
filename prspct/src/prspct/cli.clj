@@ -32,7 +32,8 @@
     [prspct.schemas :as ps]
     [prspct.user-commands :as user-commands])
   (:import
-    java.io.File)
+    java.io.File
+    java.time.Instant)
   (:gen-class))
 
 (def common-cli-spec 
@@ -523,6 +524,7 @@
 (defn middleware-resolve-config [handler]
   (fn [ctx]
     (tel/event! ::middleware-resolve-config)
+    (have! :now-instant ctx)
     (let [opts 
           (:opts ctx)
 
@@ -538,7 +540,7 @@
           (message-transfer/load-fetch (:fetch-head-symlink-path opts))
 
           resolved-config
-          (resolution/resolve-config user-config fetched-publication-messages)]
+          (resolution/resolve-config user-config (:now-instant ctx) fetched-publication-messages)]
       (tel/spy! :debug resolved-config)
       (handler (merge ctx
                       {:user-config user-config
@@ -551,9 +553,14 @@
       (binding [utils/*sh-cwd* base-dir]
         (handler ctx)))))
 
+(defn middleware-now-instant [handler]
+  (fn [ctx]
+    (handler (assoc ctx :now-instant (java.time.Instant/now)))))
+
 (def common-middlewares
   (comp
     middleware-logging-level
+    middleware-now-instant
     middleware-eventer
     middleware-exception-handling
     middleware-help
@@ -667,12 +674,12 @@
                             [common-middlewares
                              middleware-resolve-config])}
 
-     {:cmds ["publications"]
+     {:cmds ["write-publications"]
       ::desc "Write publications to files, useful for debugging."
-      ::usage "publish"
-      :fn (wrap-middlewares (fn [{:keys [opts resolved-config]}]
+      ::usage "write-publications output-dir"
+      :fn (wrap-middlewares (fn [{:keys [opts resolved-config now-instant]}]
                               (let [{:keys [publications-output-dir]} opts]
-                                (user-commands/publications! resolved-config publications-output-dir)))
+                                (user-commands/publications! resolved-config now-instant publications-output-dir)))
                             [common-middlewares
                              middleware-resolve-config])
       ::cmd-spec (select-keys (:spec non-common-cli-spec) [:publications-output-dir])
@@ -681,9 +688,9 @@
      {:cmds ["publish"]
       ::desc "Publish to publishers as per your configuration."
       ::usage "publish"
-      :fn (wrap-middlewares (fn [{:keys [resolved-config opts]}]
+      :fn (wrap-middlewares (fn [{:keys [opts resolved-config now-instant]}]
                               (let [{:keys [last-publish-info-path]} opts]
-                                (user-commands/publish! resolved-config last-publish-info-path)))
+                                (user-commands/publish! resolved-config now-instant last-publish-info-path)))
                             [common-middlewares
                              middleware-resolve-config])}
 
