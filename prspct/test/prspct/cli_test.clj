@@ -5,6 +5,7 @@
     [clojure.string :as str]
     [clojure.test :refer [deftest is testing]]
     [clojure.test.check.generators :as gen]
+    [clojure.walk :as walk]
     [com.gfredericks.test.chuck.generators :as gen']
     [com.gfredericks.test.chuck.clojure-test :refer [checking]]
 
@@ -12,6 +13,8 @@
     [malli.error :as me]
     [malli.generator :as mg]
     [malli.instrument :as mi]
+
+    [taoensso.truss :refer [have have! have!? have? ex-info!]]
 
     [babashka.fs :as fs]
     [edamame.core :as edamame]
@@ -21,6 +24,10 @@
     [prspct.test-utils]
     [prspct.lib.utils :as utils]
     [prspct.cli :as sut]))
+
+
+(def ^:dynamic *no-delete-test-data* false)
+(def ^:dynamic *-main* #'sut/-main)
 
 
 (prspct.test-utils/deftest-ns-schemas-test)
@@ -41,7 +48,88 @@
                     (str base-dir "/.prspct/fetches.HEAD")
                     (str base-dir "/.prspct/fetches.HEAD/fetch-info.edn")]))))))
 
-(def ^:dynamic *no-delete-test-data* false)
+
+(defn make-perspects [holding-dir username-strs->relations]
+    (let [srv-dir (str holding-dir "/srv-dir")
+          username-strs (keys username-strs->relations)]
+      (fs/create-dir srv-dir)
+      (doseq [username username-strs]
+        (let [base-dir (str holding-dir "/" username)]
+          (fs/create-dir base-dir)
+          (*main* "--base-dir" base-dir "init"
+                  "--init-generate-keys" 
+                  "--init-name" username 
+                  "--init-email" (str username "@example.com"))
+          (let [config-path (str base-dir "/config.edn")
+                initial-config (-> config-path slurp edamame/parse-string)]
+            (spit config-path
+                  (-> initial-config
+                      (assoc :sources 
+                            {:main-source {:shell/args ["scp" "-r" (str srv-dir "/.") :output-dir]}})
+                      (assoc :publishers 
+                            {:main-publisher {:shell/args ["scp" "-r" :input-dir-slash-dot srv-dir]}}))))))
+      (let [username-str->ident
+            (into {}
+                  (map (fn [username]
+                         [username
+                          (-> (str holding-dir "/" username "/.prspct/keys/id_prspct.pub")
+                              slurp
+                              ps/ssh-public-key->identifier-ssh)]))
+                  username-strs)
+
+            username-kw->ident
+            (update-keys username-str->ident #(keyword (str *ns*) %))]
+        (let [username-str->config
+              (into {}
+                    (map (fn [username]
+                           (let [base-dir (str holding-dir "/" username)
+                                 relations-path (str base-dir "/relations.edn")]
+                             [username
+                              {:base-dir 
+                               base-dir
+
+                               :swap-relations! 
+                               (fn [relations]
+                                 (dsl/write-contexts relations-path 
+                                                     (walk/prewalk-replace username-kw->ident relations)))
+                               :main 
+                               (fn [& args] 
+                                 (apply *-main* "--base-dir" base-dir args))}])))
+                    username-strs)]
+          (doseq [[username config] username-str->config]
+            ((:swap-relations! config) (get username-strs->relations username)))
+          username-str->config))))
+
+(defmacro with-perspects [bindings & body]
+  (have! vector? bindings)
+  (have! even? (count bindings))
+  (let [username-str->relations 
+        (into {} 
+              (map (fn [[k v]] [(str k) v]))
+              (partition 2 bindings))
+
+        username-strs
+        (keys username-str->relations)
+
+        username-str->config-sym
+        (gensym "username-str->config")
+          
+
+        further-bindings
+        (vec (mapcat 
+               (fn [username]
+                 [(symbol username) `(get ~username-str->config-sym ~username)])
+               username-strs))]
+    `(utils/with-temp-dir [holding-dir# {:no-delete *no-delete-test-data*}]
+       (when *no-delete-test-data*
+         (println "perspects holding dir:" holding-dir#))
+       (let [username-str->relations# 
+             ~username-str->relations
+
+             ~username-str->config-sym
+             (make-perspects holding-dir# username-str->relations#)]
+         (let ~further-bindings ~@body)))))
+       
 
 (deftest integration-test
   (testing "basic roundtrip"
