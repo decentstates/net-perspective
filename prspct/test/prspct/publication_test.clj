@@ -37,7 +37,7 @@
   (utils/with-temp-key-pairs [pair {}]
     (checking "symmetry" 10
               [publication-message (mg/generator #'ps/PublicationMessage)]
-        (utils/with-temp-dir [d {:no-delete true}]
+        (utils/with-temp-dir [d {:preserve true}]
             (let [publication-message
                   (-> publication-message
                       (update :headers dissoc :x-np-signature)

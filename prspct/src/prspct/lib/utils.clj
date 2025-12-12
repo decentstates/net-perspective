@@ -51,7 +51,7 @@
 (defmacro with-temp-dir
   "Like fs/with-temp-dir but allows arbitrary temp-dirs.
 
-  Also adds an extra :no-delete option useful for debugging."
+  Also adds an extra :preserve option useful for debugging."
   [bindings & body]
   (have! vector? bindings)
   (have! even? (count bindings))
@@ -66,12 +66,12 @@
          (try 
            (with-temp-dir ~(subvec bindings 2) ~@body)
            (finally
-             (when (not (:no-delete ~options))
+             (when (not (:preserve ~options))
                (fs/delete-tree ~binding-name {:force true}))))))))
 
 (comment
   (with-temp-dir [a {}
-                  b {:no-delete true}
+                  b {:preserve true}
                   c {}]
     (println a)
     (println b)
@@ -109,7 +109,7 @@
          (map? (bindings 1)))
 
     (let [[binding-name options] (subvec bindings 0 2)
-          temp-dir-options (select-keys options [:no-delete])]
+          temp-dir-options (select-keys options [:preserve])]
       `(with-temp-dir [d# ~temp-dir-options] 
          (let [~binding-name
                (let [private-key-path# (str d# "/key")

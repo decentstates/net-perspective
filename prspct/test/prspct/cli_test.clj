@@ -26,7 +26,7 @@
     [prspct.cli :as sut]))
 
 
-(def ^:dynamic *no-delete-test-data* false)
+(def ^:dynamic *preserve-test-data* false)
 (def ^:dynamic *-main* #'sut/-main)
 
 
@@ -120,8 +120,8 @@
                (fn [username]
                  [(symbol username) `(get ~username-str->config-sym ~username)])
                username-strs))]
-    `(utils/with-temp-dir [holding-dir# {:no-delete *no-delete-test-data*}]
-       (when *no-delete-test-data*
+    `(utils/with-temp-dir [holding-dir# {:preserve *preserve-test-data*}]
+       (when *preserve-test-data*
          (println "perspects holding dir:" holding-dir#))
        (let [username-str->relations# 
              ~username-str->relations
@@ -133,12 +133,12 @@
 
 (deftest integration-test
   (testing "basic roundtrip"
-    (utils/with-temp-key-pairs [a-key-pair {:no-delete *no-delete-test-data*}]
-      (utils/with-temp-dir [a-base-dir {:no-delete *no-delete-test-data*}
-                            b-base-dir {:no-delete *no-delete-test-data*}
-                            c-base-dir {:no-delete *no-delete-test-data*}
-                            srv-dir {:no-delete *no-delete-test-data*}] 
-        (when *no-delete-test-data*
+    (utils/with-temp-key-pairs [a-key-pair {:preserve *preserve-test-data*}]
+      (utils/with-temp-dir [a-base-dir {:preserve *preserve-test-data*}
+                            b-base-dir {:preserve *preserve-test-data*}
+                            c-base-dir {:preserve *preserve-test-data*}
+                            srv-dir {:preserve *preserve-test-data*}] 
+        (when *preserve-test-data*
           (println 'a-key-pair (str a-key-pair))
           (println 'a-base-dir (str a-base-dir))
           (println 'b-base-dir (str b-base-dir))
@@ -311,10 +311,10 @@
             ;; TODO: Search the entire srv-dir for the private url 
 
   (testing "command failure"
-    (utils/with-temp-key-pairs [a-key-pair {:no-delete *no-delete-test-data*}]
-      (utils/with-temp-dir [a-base-dir {:no-delete *no-delete-test-data*}
-                            srv-dir {:no-delete *no-delete-test-data*}]
-        (when *no-delete-test-data*
+    (utils/with-temp-key-pairs [a-key-pair {:preserve *preserve-test-data*}]
+      (utils/with-temp-dir [a-base-dir {:preserve *preserve-test-data*}
+                            srv-dir {:preserve *preserve-test-data*}]
+        (when *preserve-test-data*
           (println 'a-key-pair (str a-key-pair))
           (println 'a-base-dir (str a-base-dir))
           (println 'srv-dir (str srv-dir)))
@@ -371,5 +371,5 @@
                    (:out out-map))))))))) 
 
 (comment
-  (binding [*no-delete-test-data* true]
+  (binding [*preserve-test-data* true]
     (integration-test)))
