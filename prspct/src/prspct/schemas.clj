@@ -1032,7 +1032,7 @@
     user-config))
 
 (comment
-  (user-relations-dsl->user-config example-user-config))
+  (user-relations-dsl->user-config example-user-relations-dsl))
 
 
 ;; ## "Working" Configuration

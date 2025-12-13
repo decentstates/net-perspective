@@ -251,33 +251,35 @@
     (truss/try*
       (truss/with-ctx+ ctx 
         (handler ctx)) 
+      ;; clj-kondo doesn't lint truss/try* correctly:
+      #_{:clj-kondo/ignore [:unresolved-symbol]}
       (catch :all e
-        (tel/error! {:level :debug} e)
-        (let [exception-write-path 
+       (tel/error! {:level :debug} e)
+       (let [exception-write-path 
               (str (fs/create-temp-file 
-                     {:prefix "prspct-exception-"
-                      :suffix ".edn"}))
-              
+                      {:prefix "prspct-exception-"
+                       :suffix ".edn"}))
+           
               ex-d (ex-data e)]
-          (spit exception-write-path
-                (with-out-str
-                  (pprint e)
-                  (println)
-                  (pprint (utils/build-info))))
-          (binding [*out* *err*]
-            (println "Error:" (ex-message e))
-            (when-let [category (::anom/category ex-d)]
-              (println "Error Category:" category))
-            (when-let [instructions (:instructions ex-d)]
-              (println)
-              (println "Instructions:")
-              (print instructions))
-            (println)
-            (println "Full report at:")
-            (println exception-write-path)
-            (println)
-            (println "Bugs: mailto:~decentstates/net-perspective-alpha@lists.sr.ht"))
-          :error-exit)))))
+         (spit exception-write-path
+               (with-out-str
+                 (pprint e)
+                 (println)
+                 (pprint (utils/build-info))))
+         (binding [*out* *err*]
+           (println "Error:" (ex-message e))
+           (when-let [category (::anom/category ex-d)]
+             (println "Error Category:" category))
+           (when-let [instructions (:instructions ex-d)]
+             (println)
+             (println "Instructions:")
+             (print instructions))
+           (println)
+           (println "Full report at:")
+           (println exception-write-path)
+           (println)
+           (println "Bugs: mailto:~decentstates/net-perspective-alpha@lists.sr.ht"))
+         :error-exit)))))
 
 (defn middleware-eventer [handler]
   (fn [ctx]

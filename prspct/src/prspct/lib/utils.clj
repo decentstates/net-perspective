@@ -52,6 +52,7 @@
   "Like fs/with-temp-dir but allows arbitrary temp-dirs.
 
   Also adds an extra :preserve option useful for debugging."
+  {:clj-kondo/lint-as 'clojure.core/let}
   [bindings & body]
   (have! vector? bindings)
   (have! even? (count bindings))
@@ -98,6 +99,7 @@
                :ret ret})))
 
 (defmacro with-temp-key-pairs
+  {:clj-kondo/lint-as 'clojure.core/let}
   [bindings & body]
   (have! vector? bindings)
   (have! even? (count bindings))
@@ -125,10 +127,11 @@
            (with-temp-key-pairs ~(subvec bindings 2) ~@body))))))
 
 (comment
+  (require '[clojure.pprint])
   (with-temp-key-pairs [a {}
                         b {}]
-    (pprint a)
-    (pprint b)))
+    (clojure.pprint/pprint a)
+    (clojure.pprint/pprint b)))
   
 (defn multigroup-by 
   "Group by items in an array, if there are multiple items the element will be in more than one

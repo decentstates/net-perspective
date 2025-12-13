@@ -174,7 +174,7 @@
 
 
 
-(m/=> resolve-config [:=> [:cat #'ps/UserConfig [:seqable #'ps/AnyMessage]] #'ps/WorkingConfig])
+(m/=> resolve-config [:=> [:cat #'ps/UserConfig :time/instant [:seqable #'ps/AnyMessage]] #'ps/WorkingConfig])
 (defn resolve-config [user-config now-instant fetched-publication-messages]
   (tel/event! ::resolve-config:start)
   (let [flagged-publication-messages
