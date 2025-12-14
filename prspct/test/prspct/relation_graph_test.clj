@@ -1,15 +1,15 @@
 (ns prspct.relation-graph-test
-  (:require 
-    [clojure.test :refer [deftest is testing]]
-    [clojure.test.check.generators :as gen]
-    [com.gfredericks.test.chuck.generators :as gen']
-    [com.gfredericks.test.chuck.clojure-test :refer [checking]]
+  (:require
+   [clojure.test :refer [deftest is testing]]
+   [clojure.test.check.generators :as gen]
+   [com.gfredericks.test.chuck.generators :as gen']
+   [com.gfredericks.test.chuck.clojure-test :refer [checking]]
 
-    [taoensso.telemere :as tel]
+   [taoensso.telemere :as tel]
 
-    [prspct.schemas :as ps]
-    [prspct.test-utils]
-    [prspct.relation-graph :as sut]))
+   [prspct.schemas :as ps]
+   [prspct.test-utils]
+   [prspct.relation-graph :as sut]))
 
 
 (prspct.test-utils/deftest-ns-schemas-test)
@@ -18,7 +18,7 @@
 
 (deftest resolve-graph-globs-test
   (testing "object globs"
-    (let [rels 
+    (let [rels
           [{:relation/subject-pair [1 ["x" "a"]]
             :relation/object-pair  [2 ["x" "*"]]}
            {:relation/subject-pair [2 ["x" "a"]]
@@ -42,7 +42,7 @@
              (dissoc (sut/resolve-graph-globs g) :attrs)))))
 
   (testing "subject globs"
-    (let [rels 
+    (let [rels
           [{:relation/subject-pair [1 ["f" "a"]]
             :relation/object-pair  [2 ["x" "a"]]}
            {:relation/subject-pair [1 ["c" "*"]]
@@ -68,7 +68,7 @@
              (dissoc (sut/resolve-graph-globs g) :attrs)))))
 
   (testing "subject glob cycles"
-    (let [rels 
+    (let [rels
           [{:relation/subject-pair [1 ["f" "a"]]
             :relation/object-pair  [2 ["x" "a"]]}
            {:relation/subject-pair [1 ["c" "g"]]

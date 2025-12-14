@@ -63,6 +63,7 @@
               clojure
               pkgs.babashka
               pkgs.clj-kondo
+              pkgs.cljfmt
               pkgs.graphviz
               pkgs.zip
               pkgs.openssh

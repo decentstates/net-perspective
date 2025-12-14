@@ -1,20 +1,20 @@
 (ns prspct.lib.utils
-  (:require 
-    [clojure.java.io :as io]
-    [clojure.java.shell :as shell]
-    [clojure.string]
+  (:require
+   [clojure.java.io :as io]
+   [clojure.java.shell :as shell]
+   [clojure.string]
 
-    [cognitect.anomalies :as anom]
+   [cognitect.anomalies :as anom]
 
-    [taoensso.telemere :as tel]
-    [taoensso.truss :refer [have have! have!? have? ex-info!]]
+   [taoensso.telemere :as tel]
+   [taoensso.truss :refer [have have! have!? have? ex-info!]]
 
-    [edamame.core :as edamame]
+   [edamame.core :as edamame]
 
-    [babashka.fs :as fs])
+   [babashka.fs :as fs])
   (:import
-    [java.time Instant ZoneId]
-    [java.security MessageDigest]))
+   [java.time Instant ZoneId]
+   [java.security MessageDigest]))
 
 
 (def ^:dynamic *sh-cwd* nil)
@@ -30,10 +30,10 @@
   (-> "build-info.edn" io/resource slurp edamame/parse-string))
 
 (defn hostname []
-  (-> 
-    (shell/sh "hostname")
-    :out
-    clojure.string/trim))
+  (->
+   (shell/sh "hostname")
+   :out
+   clojure.string/trim))
 
 (defn instant->offset-date-time [^Instant instant]
   (.toOffsetDateTime (.atZone instant (ZoneId/systemDefault))))
@@ -43,10 +43,10 @@
            '[malli.experimental.time.transform :as mett])
 
   (m/decode [:time/offset-date-time {:pattern  "EEE, dd MMM yyyy HH:mm:ss Z"}]
-    (m/encode [:time/offset-date-time {:pattern  "EEE, dd MMM yyyy HH:mm:ss Z"}] 
-              (instant->offset-date-time (Instant/now)) 
-              (mett/time-transformer))
-    (mett/time-transformer)))
+            (m/encode [:time/offset-date-time {:pattern  "EEE, dd MMM yyyy HH:mm:ss Z"}]
+                      (instant->offset-date-time (Instant/now))
+                      (mett/time-transformer))
+            (mett/time-transformer)))
 
 (defmacro with-temp-dir
   "Like fs/with-temp-dir but allows arbitrary temp-dirs.
@@ -56,15 +56,15 @@
   [bindings & body]
   (have! vector? bindings)
   (have! even? (count bindings))
-  (cond 
-    (= (count bindings) 0) 
+  (cond
+    (= (count bindings) 0)
     `(do ~@body)
 
     (and (symbol? (bindings 0))
          (map? (bindings 1)))
     (let [[binding-name options] (subvec bindings 0 2)]
       `(let [~binding-name (fs/create-temp-dir ~options)]
-         (try 
+         (try
            (with-temp-dir ~(subvec bindings 2) ~@body)
            (finally
              (when (not (:preserve ~options))
@@ -77,14 +77,14 @@
     (println a)
     (println b)
     (println c)))
-         
+
 
 (defn sh [& args]
   (let [args (if *sh-cwd*
-              (into (vec args) 
-                    [:dir *sh-cwd*])
-              args)]
-     (apply shell/sh args)))
+               (into (vec args)
+                     [:dir *sh-cwd*])
+               args)]
+    (apply shell/sh args)))
 
 (defn ssh-keygen [& args]
   (let [args (into ["ssh-keygen"] args)
@@ -112,7 +112,7 @@
 
     (let [[binding-name options] (subvec bindings 0 2)
           temp-dir-options (select-keys options [:preserve])]
-      `(with-temp-dir [d# ~temp-dir-options] 
+      `(with-temp-dir [d# ~temp-dir-options]
          (let [~binding-name
                (let [private-key-path# (str d# "/key")
                      public-key-path# (str d# "/key.pub")]
@@ -132,17 +132,17 @@
                         b {}]
     (clojure.pprint/pprint a)
     (clojure.pprint/pprint b)))
-  
-(defn multigroup-by 
+
+(defn multigroup-by
   "Group by items in an array, if there are multiple items the element will be in more than one
   group, returns a set. (f x) must return a sequential."
   [f coll]
   (as-> coll $
     (into []
-          (mapcat 
-            (fn [x]
-              (mapv (fn [group-id] [group-id x])
-                    (have! sequential? (f x)))))
+          (mapcat
+           (fn [x]
+             (mapv (fn [group-id] [group-id x])
+                   (have! sequential? (f x)))))
           $)
     (group-by first $)
     (update-vals $ (fn [xs] (into #{} (map second) xs)))))

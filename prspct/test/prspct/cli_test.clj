@@ -1,21 +1,21 @@
 (ns prspct.cli-test
-  (:require 
-    [clojure.java.io]
-    [clojure.test :refer [deftest is testing]]
-    [clojure.test.check.generators :as gen]
-    [com.gfredericks.test.chuck.generators :as gen']
-    [com.gfredericks.test.chuck.clojure-test :refer [checking]]
+  (:require
+   [clojure.java.io]
+   [clojure.test :refer [deftest is testing]]
+   [clojure.test.check.generators :as gen]
+   [com.gfredericks.test.chuck.generators :as gen']
+   [com.gfredericks.test.chuck.clojure-test :refer [checking]]
 
 
-    [taoensso.truss :refer [have have! have!? have? ex-info!]]
+   [taoensso.truss :refer [have have! have!? have? ex-info!]]
 
-    [babashka.fs :as fs]
+   [babashka.fs :as fs]
 
-    [prspct.dsl :as dsl]
-    [prspct.schemas :as ps]
-    [prspct.test-utils :refer [with-perspects *preserve-test-data*]]
-    [prspct.lib.utils :as utils]
-    [prspct.cli :as sut]))
+   [prspct.dsl :as dsl]
+   [prspct.schemas :as ps]
+   [prspct.test-utils :refer [with-perspects *preserve-test-data*]]
+   [prspct.lib.utils :as utils]
+   [prspct.cli :as sut]))
 
 
 (prspct.test-utils/deftest-ns-schemas-test)
@@ -40,100 +40,99 @@
 (deftest integration-test
   (testing "basic roundtrip"
     (with-perspects [a
-                     [(dsl/ctx "#" 
-                           (dsl/ctx "misc"
-                                (dsl/-> "uri:https://wikipedia.com/" :public))
-                           (dsl/ctx "private"
-                                (dsl/->> "uri:http://some-private.example.com/")
-                                (dsl/->> "uri:http://some-other-private.example.com/" "#private"))
-                           (dsl/ctx "net-perspective"
-                                (dsl/-> "uri:https://net-perspective.org" "#net-perspective.*" :public)
-                                (dsl/-> "email:admin@net-perspective.org" "#net-perspective.*" :public))
-                           (dsl/ctx "net-perspective.announcements"
-                                (dsl/->> "uri:feed:https://net-perspective.org/feed.atom" :public))
-                           (dsl/ctx "net-perspective.*"
-                                (dsl/->> "email:admin@net-perspective.org" "#net-perspective.*" :public)))]
+                     [(dsl/ctx "#"
+                               (dsl/ctx "misc"
+                                        (dsl/-> "uri:https://wikipedia.com/" :public))
+                               (dsl/ctx "private"
+                                        (dsl/->> "uri:http://some-private.example.com/")
+                                        (dsl/->> "uri:http://some-other-private.example.com/" "#private"))
+                               (dsl/ctx "net-perspective"
+                                        (dsl/-> "uri:https://net-perspective.org" "#net-perspective.*" :public)
+                                        (dsl/-> "email:admin@net-perspective.org" "#net-perspective.*" :public))
+                               (dsl/ctx "net-perspective.announcements"
+                                        (dsl/->> "uri:feed:https://net-perspective.org/feed.atom" :public))
+                               (dsl/ctx "net-perspective.*"
+                                        (dsl/->> "email:admin@net-perspective.org" "#net-perspective.*" :public)))]
 
                      b
-                     [(dsl/ctx "#" 
-                           (dsl/ctx "a-private"
-                                (dsl/->> :</contacts.alice "#private"))
-                           (dsl/ctx "contacts"
-                                (dsl/ctx "alice"
-                                         (dsl/->> ::a "#self")))
-                           (dsl/ctx "net-perspective.*"
-                                (dsl/-> :</contacts.alice "#net-perspective.*" :public)))]
+                     [(dsl/ctx "#"
+                               (dsl/ctx "a-private"
+                                        (dsl/->> :</contacts.alice "#private"))
+                               (dsl/ctx "contacts"
+                                        (dsl/ctx "alice"
+                                                 (dsl/->> ::a "#self")))
+                               (dsl/ctx "net-perspective.*"
+                                        (dsl/-> :</contacts.alice "#net-perspective.*" :public)))]
 
                      c
-                     [(dsl/ctx "#" 
-                           (dsl/ctx "contacts"
-                                (dsl/ctx "alice"
-                                     (dsl/->> ::a "#self")))
-                           (dsl/ctx "net-perspective.*"
-                                (dsl/->> :</contacts.alice "#net-perspective.*" :public)))]]
-          ((:main a) "publish")
-          ((:main b) "fetch")
-          ((:main c) "fetch")
-          (with-out-str
-            (is (= {
-                    ["misc"]
-                    #{["uri:https://wikipedia.com/" []]}
-                    
-                    ["private"]
-                    #{["uri:http://some-private.example.com/" []]
-                      ["uri:http://some-other-private.example.com/" ["private"]]}
-                    
-                    ["net-perspective"]
-                    #{["email:admin@net-perspective.org" ["net-perspective" "*"]]
-                      ["uri:https://net-perspective.org" ["net-perspective" "*"]]}
+                     [(dsl/ctx "#"
+                               (dsl/ctx "contacts"
+                                        (dsl/ctx "alice"
+                                                 (dsl/->> ::a "#self")))
+                               (dsl/ctx "net-perspective.*"
+                                        (dsl/->> :</contacts.alice "#net-perspective.*" :public)))]]
+      ((:main a) "publish")
+      ((:main b) "fetch")
+      ((:main c) "fetch")
+      (with-out-str
+        (is (= {["misc"]
+                #{["uri:https://wikipedia.com/" []]}
 
-                    ["net-perspective" "*"]
-                    #{["email:admin@net-perspective.org" ["net-perspective" "*"]]}
+                ["private"]
+                #{["uri:http://some-private.example.com/" []]
+                  ["uri:http://some-other-private.example.com/" ["private"]]}
 
-                    ["net-perspective" "announcements"]
-                    #{["uri:feed:https://net-perspective.org/feed.atom" []]}}
-                   ((:main a) "build" "edn" "#**")))
-            (is (= #{"http://some-private.example.com/" 
-                     "http://some-other-private.example.com/" 
-                     "https://net-perspective.org"
-                     "feed:https://net-perspective.org/feed.atom"
-                     "https://wikipedia.com/"}
-                   ((:main a) "build" "flat-uris" "#**"))) 
-            (is (= #{}
-                   ((:main a) "build" "flat-emails" "#non-existent"))) 
-            (is (= #{"admin@net-perspective.org"}
-                   ((:main a) "build" "flat-emails" "#net-perspective"))) 
-            (is (= {["contacts" "alice"]
-                    #{[(:ident a) ["self"]]}
+                ["net-perspective"]
+                #{["email:admin@net-perspective.org" ["net-perspective" "*"]]
+                  ["uri:https://net-perspective.org" ["net-perspective" "*"]]}
 
-                    ["a-private"]
-                    #{[:</contacts.alice ["private"]]
-                      [(:ident a) ["private"]]}
-                    
-                    ["net-perspective" "*"]
-                    #{[:</contacts.alice ["net-perspective" "*"]]
-                      [(:ident a) ["net-perspective" "*"]]}
+                ["net-perspective" "*"]
+                #{["email:admin@net-perspective.org" ["net-perspective" "*"]]}
 
-                    ["net-perspective" "announcements"]
-                    #{[(:ident a) ["net-perspective" "announcements"]]}}
-                   ((:main b) "build" "edn" "#**")))
-            (is (= {["contacts" "alice"]
-                    #{[(:ident a) ["self"]]}
-                    
-                    ["net-perspective" "*"] 
-                    #{["email:admin@net-perspective.org" ["net-perspective" "*"]]
-                      [:</contacts.alice ["net-perspective" "*"]]
-                      [(:ident a) ["net-perspective" "*"]]}
+                ["net-perspective" "announcements"]
+                #{["uri:feed:https://net-perspective.org/feed.atom" []]}}
+               ((:main a) "build" "edn" "#**")))
+        (is (= #{"http://some-private.example.com/"
+                 "http://some-other-private.example.com/"
+                 "https://net-perspective.org"
+                 "feed:https://net-perspective.org/feed.atom"
+                 "https://wikipedia.com/"}
+               ((:main a) "build" "flat-uris" "#**")))
+        (is (= #{}
+               ((:main a) "build" "flat-emails" "#non-existent")))
+        (is (= #{"admin@net-perspective.org"}
+               ((:main a) "build" "flat-emails" "#net-perspective")))
+        (is (= {["contacts" "alice"]
+                #{[(:ident a) ["self"]]}
 
-                    ["net-perspective" "announcements"]
-                    #{[(:ident a) ["net-perspective" "announcements"]]
-                      ["uri:feed:https://net-perspective.org/feed.atom" []]}}
-                   ((:main c) "build" "edn" "#**"))))))
+                ["a-private"]
+                #{[:</contacts.alice ["private"]]
+                  [(:ident a) ["private"]]}
+
+                ["net-perspective" "*"]
+                #{[:</contacts.alice ["net-perspective" "*"]]
+                  [(:ident a) ["net-perspective" "*"]]}
+
+                ["net-perspective" "announcements"]
+                #{[(:ident a) ["net-perspective" "announcements"]]}}
+               ((:main b) "build" "edn" "#**")))
+        (is (= {["contacts" "alice"]
+                #{[(:ident a) ["self"]]}
+
+                ["net-perspective" "*"]
+                #{["email:admin@net-perspective.org" ["net-perspective" "*"]]
+                  [:</contacts.alice ["net-perspective" "*"]]
+                  [(:ident a) ["net-perspective" "*"]]}
+
+                ["net-perspective" "announcements"]
+                #{[(:ident a) ["net-perspective" "announcements"]]
+                  ["uri:feed:https://net-perspective.org/feed.atom" []]}}
+               ((:main c) "build" "edn" "#**"))))))
             ;; TODO: Search the entire srv-dir for the private url 
 
   (testing "command failure"
     (with-perspects [a
-                     [(dsl/ctx "#" 
+                     [(dsl/ctx "#"
 
                                (dsl/ctx "net-perspective" {}
                                         (dsl/-> "uri:net-perspective.org" "#net-perspective.*" :public)
@@ -143,19 +142,19 @@
                                (dsl/ctx "net-perspective.*" {}
                                         (dsl/->> "email:admin@net-perspective.org" "#net-perspective.*" :public)))]]
       ((:update-config! a)
-       (fn [config] (assoc-in config 
+       (fn [config] (assoc-in config
                               [:sources :bad]
                               {:shell/args
                                ["false" :output-dir ";"]})))
       (let [out-map
-            (prspct.test-utils/with-out-data-map 
+            (prspct.test-utils/with-out-data-map
               ((:main a) "fetch"))]
         (is (= :error-exit
                (:res out-map)))
         (is (re-find #":cognitect\.anomalies/unavailable"
                      (:err out-map)))
-        (is (= "" 
-               (:out out-map))))))) 
+        (is (= ""
+               (:out out-map)))))))
 
 (comment
   (binding [*preserve-test-data* true]

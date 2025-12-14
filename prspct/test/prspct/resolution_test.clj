@@ -1,41 +1,41 @@
 (ns prspct.resolution-test
-  (:require 
-    [clojure.test :refer [deftest is testing]]
-    [clojure.test.check.generators :as gen]
-    [com.gfredericks.test.chuck.generators :as gen']
-    [com.gfredericks.test.chuck.clojure-test :refer [checking]]
+  (:require
+   [clojure.test :refer [deftest is testing]]
+   [clojure.test.check.generators :as gen]
+   [com.gfredericks.test.chuck.generators :as gen']
+   [com.gfredericks.test.chuck.clojure-test :refer [checking]]
 
-    [taoensso.telemere :as tel]
+   [taoensso.telemere :as tel]
 
 
-    [prspct.schemas :as ps]
-    [prspct.test-utils]
-    [prspct.resolution :as sut])
+   [prspct.schemas :as ps]
+   [prspct.test-utils]
+   [prspct.resolution :as sut])
   (:import
-    [java.time Instant]))
+   [java.time Instant]))
 
 (prspct.test-utils/deftest-ns-schemas-test)
 
 (deftest resolve-config-test
   (testing "basics no publication-messages"
-    (let [dsl 
-          '[(ctx "#" 
-                 (ctx "self.contacts" 
-                      (ctx "d" 
+    (let [dsl
+          '[(ctx "#"
+                 (ctx "self.contacts"
+                      (ctx "d"
                            (-> "email:d@test.com" "#self" :public)))
-                 (ctx "food" 
+                 (ctx "food"
                       (-> "uri:geo:37.786971,-122.399677" "#null" :public))
-                 (ctx "friends" 
+                 (ctx "friends"
                       (-> :</self.contacts.d "#null" :public)))]
 
-          user-config 
+          user-config
           {:user-contexts
            (ps/user-relations-dsl->user-config dsl)}
 
           now-instant
           (Instant/now)
 
-          res 
+          res
           (sut/resolve-config user-config now-instant [])
 
           expected
@@ -72,11 +72,11 @@
            :resolved-self-contexts
            {["self" "contacts" "d"]
             #{["email:d@test.com" ["self"]]},
-            ["food"] 
+            ["food"]
             #{["uri:geo:37.786971,-122.399677" ["null"]]},
             ["friends"]
             #{[:</self.contacts.d ["null"]] ["email:d@test.com" ["null"]]}}}]
-           
+
       (is (= expected
              (select-keys res [:resolved-self-contexts :working-contexts]))))))
 

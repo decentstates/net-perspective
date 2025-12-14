@@ -1,5 +1,5 @@
 (ns prspct.message-transfer
-  [:require 
+  [:require
    [taoensso.telemere :as tel]
    [taoensso.truss :refer [have have! have!? have? ex-info!]]
 
@@ -62,30 +62,30 @@
        :transfer-result/out ""
        :transfer-result/err ""})))
 
-(defn shell-source 
+(defn shell-source
   "Provide args to provide to clojure.java.shell/sh
 
   In args, :output-dir keyword will be substituted."
   [source-config]
   (reify MessageSource
-    (-source-config [_] 
+    (-source-config [_]
       source-config)
     (-source-fetch! [_ output-dir]
       (fs/create-dirs output-dir)
       (let [args
             (:shell/args source-config)
 
-            substitute-f 
+            substitute-f
             (fn [arg]
               (if (= arg :output-dir)
                 (str output-dir)
                 arg))
 
-            args' 
+            args'
             (mapv substitute-f args)]
         (shell-transfer args')))))
 
-(defn shell-publisher 
+(defn shell-publisher
   "Provide args to provide to clojure.java.shell/sh
 
   In args, :input-dir, :input-dir-slash-dot keywords will be substituted.
@@ -93,15 +93,15 @@
   "
   [publisher-config]
   (reify MessagePublisher
-    (-publisher-config [_] 
+    (-publisher-config [_]
       publisher-config)
     (-publisher-publish! [_ input-dir]
       (let [args
             (:shell/args publisher-config)
 
-            substitute-f 
+            substitute-f
             (fn [arg]
-              (cond 
+              (cond
                 (= :input-dir arg)
                 input-dir
 
@@ -111,7 +111,7 @@
                 :else
                 arg))
 
-            args' 
+            args'
             (mapv substitute-f args)]
         (shell-transfer args')))))
 
@@ -142,53 +142,53 @@
 
 (defn- new-fetch-info [source-configs]
   {:fetch-info/uuid
-     (random-uuid)
+   (random-uuid)
 
-     :fetch-info/time-start
-     (Instant/now)
+   :fetch-info/time-start
+   (Instant/now)
 
-     :fetch-info/sources
-     (into {}
-          (map (fn [source-config]
-                [source-config 
+   :fetch-info/sources
+   (into {}
+         (map (fn [source-config]
+                [source-config
                  {:fetch-info-source/output-dir (str (hash source-config))
                   :fetch-info-source/status :not-started}]))
-          source-configs)})
+         source-configs)})
 
-(defn fetch! 
+(defn fetch!
   ([source-configs output-dir]
    (fetch! source-configs output-dir (atom nil)))
-   
+
   ([source-configs output-dir fetch-info-atom]
    (fs/create-dirs output-dir)
    (reset! fetch-info-atom (new-fetch-info source-configs))
    (doseq [source-config source-configs]
-    (let [source-output-dir 
-          (str output-dir 
-               "/" 
-               (get-in @fetch-info-atom 
-                       [:fetch-info/sources source-config :fetch-info-source/output-dir]))
+     (let [source-output-dir
+           (str output-dir
+                "/"
+                (get-in @fetch-info-atom
+                        [:fetch-info/sources source-config :fetch-info-source/output-dir]))
 
-          source (source-config->source source-config)
+           source (source-config->source source-config)
 
-          assoc-source-fetch!
-          (fn [k v] (swap! fetch-info-atom assoc-in [:fetch-info/sources source-config k] v))]
+           assoc-source-fetch!
+           (fn [k v] (swap! fetch-info-atom assoc-in [:fetch-info/sources source-config k] v))]
 
-      (assoc-source-fetch! :fetch-info-source/status :running)
-      (assoc-source-fetch! :fetch-info-source/time-start (Instant/now))
-      (let [res (source-fetch! source source-output-dir)]
-        (assoc-source-fetch! :fetch-info-source/time-finish (Instant/now))
-        (assoc-source-fetch! :fetch-info-source/transfer-result res)
-        (assoc-source-fetch! :fetch-info-source/success? (:transfer-result/success? res)))
-      (assoc-source-fetch! :fetch-info-source/status :finished)))
+       (assoc-source-fetch! :fetch-info-source/status :running)
+       (assoc-source-fetch! :fetch-info-source/time-start (Instant/now))
+       (let [res (source-fetch! source source-output-dir)]
+         (assoc-source-fetch! :fetch-info-source/time-finish (Instant/now))
+         (assoc-source-fetch! :fetch-info-source/transfer-result res)
+         (assoc-source-fetch! :fetch-info-source/success? (:transfer-result/success? res)))
+       (assoc-source-fetch! :fetch-info-source/status :finished)))
    (swap! fetch-info-atom assoc :fetch-info/time-finish (Instant/now))
    ;; TODO: duratom?
    (spit (str output-dir "/fetch-info.edn") (ps/encode-fetch-info @fetch-info-atom))
    @fetch-info-atom))
 
-          
+
 (m/=> load-fetch [:=> [:cat :string] [:seqable #'ps/AnyMessage]])
-(defn load-fetch 
+(defn load-fetch
   "Loads and parses a fetch into a seq of any-messages.
 
   ::publication-message? is true if it has been parsed as a publication message.
@@ -202,7 +202,7 @@
     (for [[_ fetch-info-source] (:fetch-info/sources fetch-info)
           :let [output-dir (str fetch-dir "/" (:fetch-info-source/output-dir fetch-info-source))]
           file (map str (fs/glob output-dir "**.eml"))]
-      (let [contents 
+      (let [contents
             (slurp file)
 
             message
@@ -230,16 +230,16 @@
         eml-hash   (utils/sha256 eml)
         filename (str eml-hash ".eml")
         write-path (str output-dir "/" filename)]
-      (spit write-path eml)
-      write-path))
+    (spit write-path eml)
+    write-path))
 
 (comment
   (write-edn-message! #'ps/ExampleMessage (mg/generate ps/ExampleMessage) "/tmp/np-holding-space"))
 
 
 ;; TODO: Add content-type: text/edn or application/x-np-publication+edn
-(m/=> write-edn-message-envelopes! [:=> [:cat [:vector ps/EDNMessageEnvelope] :string] 
-                                        [:map-of ps/MessagePublisherConfig :string]])
+(m/=> write-edn-message-envelopes! [:=> [:cat [:vector ps/EDNMessageEnvelope] :string]
+                                    [:map-of ps/MessagePublisherConfig :string]])
 (defn write-edn-message-envelopes! [edn-message-envelopes output-dir]
   (into {}
         (map (fn [[publisher envelopes]]
@@ -265,12 +265,12 @@
    :publish-info/publishers
    (into {}
          (map (fn [[publisher-config input-dir]]
-                [publisher-config 
+                [publisher-config
                  {:publish-info-publisher/input-dir input-dir
                   :publish-info-publisher/status :not-started}]))
          publisher-config->input-dir)})
 
-(defn publish! 
+(defn publish!
   ([publisher-config->input-dir parent-input-dir]
    (publish! publisher-config->input-dir parent-input-dir (atom nil)))
   ([publisher-config->input-dir parent-input-dir publish-info-atom]
@@ -279,7 +279,7 @@
      (let [publisher (publisher-config->publisher publisher-config)
            assoc-publisher-publish!
            (fn [k v] (swap! publish-info-atom assoc-in [:publish-info/publishers publisher-config k] v))]
-           
+
        (assoc-publisher-publish! :publish-info-publisher/status :running)
        (assoc-publisher-publish! :publish-info-publisher/time-start (Instant/now))
        (let [res (publisher-publish! publisher input-dir)]

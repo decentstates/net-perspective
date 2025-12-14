@@ -18,7 +18,7 @@
   @(promise))
 
 (defn publishing-state [do-with-state target-atom]
-  #(do 
+  #(do
      (reset! target-atom %)
      (try (do-with-state %)
-       (finally (reset! target-atom nil)))))
+          (finally (reset! target-atom nil)))))

@@ -1,9 +1,9 @@
 (ns prspct.core
- [:require 
-  [taoensso.telemere :as tel]
+  [:require
+   [taoensso.telemere :as tel]
 
-  [prspct.cli :as cli]]
- (:gen-class))
+   [prspct.cli :as cli]]
+  (:gen-class))
 
 (defn -main [& args]
   (tel/add-handler! ::console (tel/handler:console {:stream *err*}))
