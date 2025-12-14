@@ -1,14 +1,9 @@
 (ns prspct.relation-graph-test
   (:require 
-    [clojure.set :as set]
-    [clojure.string :as str]
     [clojure.test :refer [deftest is testing]]
     [clojure.test.check.generators :as gen]
     [com.gfredericks.test.chuck.generators :as gen']
     [com.gfredericks.test.chuck.clojure-test :refer [checking]]
-
-    [malli.core :as m]
-    [malli.generator :as mg]
 
     [taoensso.telemere :as tel]
 

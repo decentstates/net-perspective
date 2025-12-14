@@ -1,15 +1,10 @@
 (ns prspct.message-transfer
   [:require 
-   [clojure.java.io :as io]
-   [clojure.java.shell :as shell]
-
    [taoensso.telemere :as tel]
    [taoensso.truss :refer [have have! have!? have? ex-info!]]
 
    [malli.core :as m]
    [malli.generator :as mg]
-
-   [edamame.core :as edamame]
 
    [babashka.fs :as fs]
 

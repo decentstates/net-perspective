@@ -1,10 +1,9 @@
 (ns prspct.publication
   [:require 
    [clojure.string :as str]
-   [clojure.java.shell :as shell]
 
-   [taoensso.telemere :as tel]
    [cognitect.anomalies :as anom]
+   [taoensso.telemere :as tel]
    [taoensso.truss :refer [have have! have!? have? ex-info! unexpected-arg!]]
 
    [babashka.fs :as fs]
@@ -259,7 +258,7 @@
 
 (defn message-filter-self 
   "Filter out messages from yourself"
-  [self-identifiers]
+  [_self-identifiers]
   (fn [publication-message]
     ;; TODO: Filter 
     ;; Detect keywords in pairs...

@@ -4,21 +4,14 @@
     [clojure.string :as str]
 
     [cognitect.anomalies :as anom]
-
     [taoensso.telemere :as tel]
     [taoensso.truss :refer [have have! have!? have? ex-info!]]
 
-    [malli.core :as m]
-
-    [edamame.core :as edamame]
-
-    [babashka.cli :as cli]
     [babashka.fs :as fs]
 
     [prspct.dsl :as dsl]
     [prspct.message-transfer :as message-transfer]
     [prspct.publication :as publication]
-    [prspct.relation-graph :as rel-graph]
     [prspct.resolution :as resolution]
     [prspct.schemas :as ps]
     [prspct.lib.utils :as utils])

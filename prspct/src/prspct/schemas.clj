@@ -21,8 +21,7 @@
     [malli.experimental.time.transform :as mett]
     [malli.generator :as mg]
     [malli.registry :as mr]
-    [malli.transform :as mt]
-    [malli.util :as mu])
+    [malli.transform :as mt])
   (:import
     [java.time OffsetDateTime ZoneOffset]))
 

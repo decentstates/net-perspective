@@ -1,15 +1,11 @@
 (ns prspct.message-transfer-test
   (:require 
-    [clojure.string :as str]
     [clojure.test :refer [deftest is testing]]
     [clojure.test.check.generators :as gen]
     [com.gfredericks.test.chuck.generators :as gen']
     [com.gfredericks.test.chuck.clojure-test :refer [checking]]
 
-    [malli.core :as m]
-    [malli.error :as me]
     [malli.generator :as mg]
-    [malli.instrument :as mi]
 
     [babashka.fs :as fs]
 
@@ -48,6 +44,6 @@
                                envelopes)
 
               publish-config->input-dir (sut/write-edn-message-envelopes! envelopes' parent-input-dir)
-              publish-info (sut/publish! publish-config->input-dir parent-input-dir)]
+              _publish-info (sut/publish! publish-config->input-dir parent-input-dir)]
           (is (= (count (fs/glob publish-dir "**.eml")) 
                  (count envelopes))))))))

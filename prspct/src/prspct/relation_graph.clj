@@ -8,7 +8,6 @@
     [taoensso.telemere :as tel]
     [taoensso.truss :refer [have have! have!? have? ex-info!]]
 
-    [malli.core :as m]
     [malli.generator :as mg]
 
     [loom.alg]
@@ -56,7 +55,7 @@
 (defn- rnode-condensed [id]
   [[::condensed-node id] []])
 
-(defn- rnode-condensed-id [rnode]
+(defn- _rnode-condensed-id [rnode]
   (second (first rnode)))
 
 (defn- rnode-condensed? [rnode]

@@ -14,7 +14,6 @@
     [taoensso.truss :as truss :refer [have have! have!? have? ex-info! try*]]
 
     [malli.core :as m]
-    [malli.error :as me]
     [malli.util :as mu]
     [malli.transform :as mt]
 
@@ -24,16 +23,10 @@
     [babashka.fs :as fs]
 
     [prspct.lib.utils :as utils]
-    [prspct.dsl :as dsl]
     [prspct.message-transfer :as message-transfer]
-    [prspct.publication :as publication]
-    [prspct.relation-graph :as rel-graph]
     [prspct.resolution :as resolution]
     [prspct.schemas :as ps]
     [prspct.user-commands :as user-commands])
-  (:import
-    java.io.File
-    java.time.Instant)
   (:gen-class))
 
 (def common-cli-spec 

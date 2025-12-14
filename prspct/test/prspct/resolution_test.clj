@@ -1,7 +1,5 @@
 (ns prspct.resolution-test
   (:require 
-    [clojure.set :as set]
-    [clojure.string :as str]
     [clojure.test :refer [deftest is testing]]
     [clojure.test.check.generators :as gen]
     [com.gfredericks.test.chuck.generators :as gen']
@@ -9,14 +7,12 @@
 
     [taoensso.telemere :as tel]
 
-    [malli.core :as m]
-    [malli.generator :as mg]
 
     [prspct.schemas :as ps]
     [prspct.test-utils]
     [prspct.resolution :as sut])
   (:import
-    java.time.Instant))
+    [java.time Instant]))
 
 (prspct.test-utils/deftest-ns-schemas-test)
 
@@ -37,7 +33,7 @@
            (ps/user-relations-dsl->user-config dsl)}
 
           now-instant
-          (java.time.Instant/now)
+          (Instant/now)
 
           res 
           (sut/resolve-config user-config now-instant [])

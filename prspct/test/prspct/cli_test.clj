@@ -1,22 +1,15 @@
 (ns prspct.cli-test
   (:require 
-    [clojure.pprint :refer [pprint]]
     [clojure.java.io]
-    [clojure.string :as str]
     [clojure.test :refer [deftest is testing]]
     [clojure.test.check.generators :as gen]
     [com.gfredericks.test.chuck.generators :as gen']
     [com.gfredericks.test.chuck.clojure-test :refer [checking]]
 
-    [malli.core :as m]
-    [malli.error :as me]
-    [malli.generator :as mg]
-    [malli.instrument :as mi]
 
     [taoensso.truss :refer [have have! have!? have? ex-info!]]
 
     [babashka.fs :as fs]
-    [edamame.core :as edamame]
 
     [prspct.dsl :as dsl]
     [prspct.schemas :as ps]

@@ -1,7 +1,5 @@
 (ns prspct.resolution
   [:require 
-   [clojure.string :as str]
-
    [taoensso.telemere :as tel]
    [taoensso.truss :refer [have have! have!? have? ex-info!]]
 

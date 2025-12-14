@@ -1,0 +1,7 @@
+{:linters {:unresolved-symbol {:exclude [(malli.core/=>)]},
+           :type-mismatch {:namespaces {prspct.schemas {simple-message->eml {:arities {1 {:args [:any], :ret :string}}},
+                                                        eml->simple-message {:arities {1 {:args [:string], :ret :any}}},
+                                                        context->internal-context {:arities {1 {:args [:any],
+                                                                                                :ret :vector}}},
+                                                        internal-context->context {:arities {1 {:args [:vector],
+                                                                                                :ret :any}}}}}}}}

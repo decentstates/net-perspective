@@ -9,7 +9,6 @@
     [malli.core :as m]
     [malli.error :as me]
     [malli.generator :as mg]
-    [malli.instrument :as mi]
 
     [prspct.schemas :as ps]
     [prspct.test-utils]))
