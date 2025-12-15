@@ -203,7 +203,7 @@
 
         _ (tel/event! ::resolve-config:resolved-contexts-and-relgraph)]
     (doseq [m flagged-publication-messages]
-      (when-not (publication/passing-message? flagged-publication-messages)
+      (when-not (publication/passing-message? m)
         (tel/trace! ::filtered-publication-message (:headers m))))
     {:user-config-options (:user-config-options user-config)
      :publication-message-stats publication-message-stats
