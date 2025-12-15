@@ -11,6 +11,7 @@
         com.taoensso/truss                  {:mvn/version "2.2.0"}
 
         metosin/malli                       {:mvn/version "0.19.1"}
+        cheshire/cheshire                   {:mvn/version "6.1.0"}
         borkdude/edamame                    {:mvn/version "1.4.32"}
         babashka/fs                         {:mvn/version "0.5.27"}
         org.babashka/cli                    {:mvn/version "0.8.66"}

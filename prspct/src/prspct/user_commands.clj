@@ -7,6 +7,8 @@
    [taoensso.telemere :as tel]
    [taoensso.truss :refer [have have! have!? have? ex-info!]]
 
+   [cheshire.core :as cheshire]
+
    [babashka.fs :as fs]
 
    [prspct.dsl :as dsl]
@@ -234,6 +236,22 @@
 
         serialize-fn
         (fn [x] (with-out-str (pprint x)))]
+    (with-meta matching-resolved-contexts {:serialize-fn serialize-fn})))
+
+(defmethod build! :json
+  [_ build-context build-idents resolved-config]
+  (let [matching-resolved-contexts
+        (build! :edn build-context build-idents resolved-config)
+
+        matching-resolved-contexts
+        (-> matching-resolved-contexts
+            (update-keys ps/internal-context->context)
+            (update-vals (partial mapv
+                           (fn [[ident internal-context]] [ident (ps/internal-context->context internal-context)]))))
+
+        serialize-fn
+        (fn [x]
+          (cheshire/generate-string x {:pretty true}))]
     (with-meta matching-resolved-contexts {:serialize-fn serialize-fn})))
 
 (defn- build-flat [build-context build-idents resolved-config filter-f]

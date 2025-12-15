@@ -34,19 +34,40 @@
          :ns-compile [main]))
 
 (defn native-image [opts]
-  (let [ret (shell/sh "native-image" 
-                      "-jar" (:uber-file opts) 
-                      "-o" (:native-image-file opts)
-                      "--features=clj_easy.graal_build_time.InitClojureClasses"
-                      "--initialize-at-build-time=org.slf4j.helpers.NOPLoggerFactory"
-                      "--initialize-at-build-time=java.time.Instant"
-                      "-classpath" (java.lang.System/getProperty "java.class.path")
-                      ;; Fix for aarm64-darwin not detecting the toolchain properly:
-                      "-H:-CheckToolchain"
-                      "-H:IncludeResources=.*build-info.edn"
-                      "-H:IncludeResources=.*build-info.edn"
-                      "-H:IncludeResources=.*config-options-init.edn"
-                      "-H:IncludeResources=.*relations-init.edn")]
+  (let [opts (uber-opts opts)
+        args ["native-image" 
+              "-jar" (:uber-file opts) 
+              "-o" (:native-image-file opts)
+              "--features=clj_easy.graal_build_time.InitClojureClasses"
+              "--initialize-at-build-time=org.slf4j.helpers.NOPLoggerFactory"
+              "--initialize-at-build-time=java.time.Instant"
+
+              ;; cheshire json encoding:
+              "--initialize-at-build-time=com.fasterxml.jackson.core.JsonFactory"
+              "--initialize-at-build-time=com.fasterxml.jackson.core.io.SerializedString"
+              "--initialize-at-build-time=com.fasterxml.jackson.core.StreamReadConstraints"
+              "--initialize-at-build-time=com.fasterxml.jackson.core.StreamWriteConstraints"
+              "--initialize-at-build-time=com.fasterxml.jackson.dataformat.smile.SmileFactor"
+              "--initialize-at-build-time=com.fasterxml.jackson.core.util.JsonRecyclerPools$ThreadLocalPool"
+              "--initialize-at-build-time=com.fasterxml.jackson.core.ErrorReportConfiguration"
+              "--initialize-at-build-time=com.fasterxml.jackson.dataformat.cbor.CBORFactory"
+              "--initialize-at-build-time=com.fasterxml.jackson.dataformat.smile.SmileFactory"
+              "--initialize-at-build-time=com.fasterxml.jackson.core.sym.CharsToNameCanonicalizer"
+              "--initialize-at-build-time=com.fasterxml.jackson.core.sym.ByteQuadsCanonicalizer"
+              "--initialize-at-build-time=com.fasterxml.jackson.core.sym.CharsToNameCanonicalizer$TableInfo"
+              "--initialize-at-build-time=com.fasterxml.jackson.core.sym.ByteQuadsCanonicalizer$TableInfo"
+
+              "-classpath" (java.lang.System/getProperty "java.class.path")
+
+              ;; Fix for aarm64-darwin not detecting the toolchain properly:
+              "-H:-CheckToolchain"
+
+              "-H:IncludeResources=.*build-info.edn"
+              "-H:IncludeResources=.*config-options-init.edn"
+              "-H:IncludeResources=.*relations-init.edn"]
+        _ (println "Running native-image:")
+        _ (pprint args)
+        ret (apply shell/sh args)]
     (print (:out ret))
     (print (:err ret)))
   opts)

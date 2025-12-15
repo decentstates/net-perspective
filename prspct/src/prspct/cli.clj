@@ -691,7 +691,7 @@
 
     {:cmds ["build"]
      ::desc "Build a target perspective."
-     ::usage "build target [build-context] [extra opts]"
+     ::usage "build TARGET [BUILD-CONTEXT] [OPTIONS...]"
      :fn (wrap-middlewares (fn [{:keys [opts resolved-config]}]
                              (let [{:keys [build-target build-context build-idents]} opts
                                    output (user-commands/build! build-target build-context build-idents resolved-config)

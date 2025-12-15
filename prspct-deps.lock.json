@@ -37,6 +37,12 @@
     "borkdude/edamame/1.4.32/edamame-1.4.32.pom": {
       "sha256": "536866d0486eeb4af4fc331cf8bbe8a8bf2979f77744ff1b286e1bedfca7c634"
     },
+    "cheshire/cheshire/6.1.0/cheshire-6.1.0.jar": {
+      "sha256": "aee0ab6e448195aa095f22c428e20d2bc610591c54c10ec3e183dd3b081639c2"
+    },
+    "cheshire/cheshire/6.1.0/cheshire-6.1.0.pom": {
+      "sha256": "28aa62f54ede676623032408d78b0c82abfdd4888c7c56a0b2122b83e3da77e3"
+    },
     "clj-time/clj-time/0.15.2/clj-time-0.15.2.jar": {
       "sha256": "f17dc6d8f9673df9187fcaad2d1852b5520ce13b86a4c1b49657389ddff18e50"
     },
@@ -72,6 +78,39 @@
     },
     "com/cognitect/aws/s3/871.2.29.35/s3-871.2.29.35.pom": {
       "sha256": "a3ac88b6576a6d482cf91c3618432a242d00acdb7390bc610ebcedf8e74288d4"
+    },
+    "com/fasterxml/jackson/core/jackson-core/2.20.0/jackson-core-2.20.0.jar": {
+      "sha256": "bc0cf46075877201f8406ee7de2741ae7df6c066f5f0457bd80632a718c06e72"
+    },
+    "com/fasterxml/jackson/core/jackson-core/2.20.0/jackson-core-2.20.0.pom": {
+      "sha256": "5f16558ac223073a6f247440f305f59f05eff50aaf1eeae0baad412800016f68"
+    },
+    "com/fasterxml/jackson/dataformat/jackson-dataformat-cbor/2.20.0/jackson-dataformat-cbor-2.20.0.jar": {
+      "sha256": "ab075616cbd67f5676f89825ec9c8bc7b54c84dbe934b162145b34172370b5d6"
+    },
+    "com/fasterxml/jackson/dataformat/jackson-dataformat-cbor/2.20.0/jackson-dataformat-cbor-2.20.0.pom": {
+      "sha256": "498bf0318bea2e763659fd2bfe4f16f291edf0935a30c9f2b0a28fee3ad7cfc7"
+    },
+    "com/fasterxml/jackson/dataformat/jackson-dataformat-smile/2.20.0/jackson-dataformat-smile-2.20.0.jar": {
+      "sha256": "345c002cb7ac9e54341a8f04c56a11dc21945426ea8399ff56e02fb8e912a66e"
+    },
+    "com/fasterxml/jackson/dataformat/jackson-dataformat-smile/2.20.0/jackson-dataformat-smile-2.20.0.pom": {
+      "sha256": "20cd498279d051c690324b7a475f847bfc10a007104bab9cdfbd606b5b058439"
+    },
+    "com/fasterxml/jackson/dataformat/jackson-dataformats-binary/2.20.0/jackson-dataformats-binary-2.20.0.pom": {
+      "sha256": "649fce40a57d421c7cd9eac23fdd7d5cf6f3c1d1b93406ee277c45c35326e588"
+    },
+    "com/fasterxml/jackson/jackson-base/2.20.0/jackson-base-2.20.0.pom": {
+      "sha256": "fc88028d19eeaa37eda596e6b98d3749f22cfc8add19ea19745abe836883ce66"
+    },
+    "com/fasterxml/jackson/jackson-bom/2.20.0/jackson-bom-2.20.0.pom": {
+      "sha256": "f6283647e701fda1cd312dcc21cb132a40f798f19e8e42fafc3fe347c5a51bbb"
+    },
+    "com/fasterxml/jackson/jackson-parent/2.20/jackson-parent-2.20.pom": {
+      "sha256": "b43b7f5c62e86b164fae70ae17d6911c5db60799af01057360afda82e4845be5"
+    },
+    "com/fasterxml/oss-parent/70/oss-parent-70.pom": {
+      "sha256": "26ca8ed6f82c9d2ed7cd32298105bb65c0f9d899db61757a09741586fa93a639"
     },
     "com/gfredericks/test.chuck/0.2.15/test.chuck-0.2.15.jar": {
       "sha256": "09b05f0a2dcd3b23a93a79140306c21bc4f324d27c5e92f74509d1101e77dc18"
@@ -700,6 +739,9 @@
     "org/junit/junit-bom/5.10.3/junit-bom-5.10.3.pom": {
       "sha256": "10937d44c425984cb8739225d34712e1a3145641ca93ac3f7ef186fa25f6babc"
     },
+    "org/junit/junit-bom/5.13.4/junit-bom-5.13.4.pom": {
+      "sha256": "d7a08a99b2502f0bb68cd4e1f984f0bf69324aaa208bd0f73366c03fc3548a42"
+    },
     "org/junit/junit-bom/5.7.1/junit-bom-5.7.1.pom": {
       "sha256": "0b9b14a3d62106fafe8c68a717b87b87ad18685899451b753c04fa41b6857784"
     },
@@ -759,6 +801,12 @@
     },
     "slingshot/slingshot/0.12.2/slingshot-0.12.2.pom": {
       "sha256": "4abc4e2b9a69c73bd373e832d3f00e59067843ff8351efd5eebb1f3824db9c51"
+    },
+    "tigris/tigris/0.1.2/tigris-0.1.2.jar": {
+      "sha256": "49aa648edb6c14e57095a11b391eaee606578323fb79755f92331ac6300f97a0"
+    },
+    "tigris/tigris/0.1.2/tigris-0.1.2.pom": {
+      "sha256": "1fd55903597520dcd4ae76e6a33eff5e35a615422bbad2a8ed9ac332aafbe4a0"
     }
   }
 }
