@@ -37,8 +37,7 @@
                     (str base-dir "/.prspct/fetches.HEAD/fetch-info.edn")]))))))
 
 
-(deftest integration-test
-  (testing "basic roundtrip"
+(deftest integration-basic-roundtrip-test
     (with-perspects [a
                      [(dsl/ctx "#"
                                (dsl/ctx "misc"
@@ -130,7 +129,51 @@
                ((:main c) "build" "edn" "#**"))))))
             ;; TODO: Search the entire srv-dir for the private url 
 
-  (testing "command failure"
+(deftest integration-multi-step-test
+    (with-perspects [a
+                     [(dsl/ctx "#misc-a"
+                               (dsl/-> "uri:https://wikipedia.com/" :public))]
+
+                     b
+                     [(dsl/ctx "#contacts.a"
+                               (dsl/->> ::a "#self"))
+                      (dsl/ctx "#misc-b"
+                               (dsl/->> :</contacts.a "#misc-a" :public))]
+
+                     c
+                     [(dsl/ctx "#contacts.b"
+                               (dsl/->> ::b "#self"))
+                      (dsl/ctx "#misc-c"
+                               (dsl/->> :</contacts.b "#misc-b" :public))]
+
+                     d
+                     [(dsl/ctx "#contacts.c"
+                               (dsl/->> ::c "#self"))
+                      (dsl/ctx "#misc-d"
+                               (dsl/->> :</contacts.c "#misc-c" :public))]]
+      ((:main a) "publish")
+      ((:main b) "publish")
+      ((:main c) "publish")
+      (with-out-str
+        (is (= {["misc-d"]
+                #{[(:ident c) ["misc-c"]]
+                  [:</contacts.c ["misc-c"]]}
+                ["contacts" "c"]
+                #{[(:ident c) ["self"]]}}
+               ((:main d) "build" "edn" "#**"))))
+      ((:main d) "fetch")
+      (with-out-str
+        (is (= {["misc-d"]
+                #{["uri:https://wikipedia.com/" []]
+                  [(:ident a) ["misc-a"]]
+                  [(:ident b) ["misc-b"]]
+                  [(:ident c) ["misc-c"]]
+                  [:</contacts.c ["misc-c"]]}
+                ["contacts" "c"]
+                #{[(:ident c) ["self"]]}}
+               ((:main d) "build" "edn" "#**"))))))
+
+(deftest integration-command-failure-test
     (with-perspects [a
                      [(dsl/ctx "#"
 
@@ -154,8 +197,8 @@
         (is (re-find #":cognitect\.anomalies/unavailable"
                      (:err out-map)))
         (is (= ""
-               (:out out-map)))))))
+               (:out out-map))))))
 
 (comment
   (binding [*preserve-test-data* true]
-    (integration-test)))
+    (integration-multi-step-test)))

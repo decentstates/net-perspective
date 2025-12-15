@@ -13,11 +13,13 @@
   (apply list '->> more))
 
 (defn write-contexts [f dsl-contexts]
+  (spit f "")
   (doseq [dsl-context dsl-contexts]
     (spit f
           (with-out-str
             (binding [clojure.pprint/*print-right-margin* 120]
-              (pprint dsl-context))))))
+              (pprint dsl-context)))
+          :append true)))
 
 (defn write-config [f config]
   (spit f
