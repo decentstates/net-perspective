@@ -2,12 +2,22 @@
  {:underties-source
   {:shell/args
    ;; TODO: Need to set the cwd to the parent of the config file...
-   ["scp" "-r" "-i" :fill-in-your/private-key-path "prspct@alpha.underties.net:/srv/prspct/." :output-dir]}}
+   ["scp" 
+    "-r" 
+    "-i" :fill-in-your/private-key-path 
+    "-F" "none"
+    "prspct@alpha.underties.net:/srv/prspct/."
+    :output-dir]}}
 
  :publishers 
  {:underties-publisher 
   {:shell/args
-   ["scp" "-r" "-i" :fill-in-your/private-key-path :input-dir-slash-dot "prspct@alpha.underties.net:/srv/prspct/"]}}
+   ["scp"
+    "-r"
+    "-i" :fill-in-your/private-key-path
+    "-F" "none"
+    :input-dir-slash-dot
+    "prspct@alpha.underties.net:/srv/prspct/"]}}
 
  :publish-identities
  {:main-identity
