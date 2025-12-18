@@ -30,7 +30,7 @@
       in rec {
         packages.prspct = pkgs.stdenv.mkDerivation {
           pname = "prspct";
-          version = "0.1.0";
+          version = "0.3.0";
 
           src = ./prspct;
 
@@ -52,7 +52,7 @@
 
           installPhase = ''
             mkdir -p $out/bin
-            mv target/org.net-perspective/prspct-*-SNAPSHOT $out/bin/prspct
+            mv target/org.net-perspective/prspct $out/bin/prspct
           '';
         };
         formatter = pkgs.nixfmt-rfc-style;

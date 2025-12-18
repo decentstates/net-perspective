@@ -6,6 +6,21 @@ All notable changes to this project will be documented in this file. This change
 ### Removed
 ### Fixed
 
+
+## 0.3.0 2025-12-18
+
+### Changed
+- Added JSON builds
+- Improved testing
+- Implemented linting and formatting
+
+### Removed
+### Fixed
+- Message filters now only warn on filtered messages.
+- Fixed initial-config incorrect publisher reference.
+- Ignore global .ssh/config in initial-config
+
+
 ## 0.2.0 2025-12-11
 
 ### Changed

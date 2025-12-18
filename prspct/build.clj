@@ -8,7 +8,7 @@
     java.util.Date))
 
 (def lib 'org.net-perspective/prspct)
-(def version "0.1.0-SNAPSHOT")
+(def version "0.3.0")
 (def main 'prspct.core)
 (def class-dir "target/classes")
 
@@ -26,8 +26,8 @@
   (assoc opts
          :lib lib 
          :main main
-         :uber-file (format "target/%s-%s.jar" lib version)
-         :native-image-file (format "target/%s-%s" lib version)
+         :uber-file (format "target/%s.jar" lib)
+         :native-image-file (format "target/%s" lib)
          :basis (b/create-basis {})
          :class-dir class-dir
          :src-dirs ["src"]
