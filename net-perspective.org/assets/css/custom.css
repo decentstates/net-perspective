@@ -1,0 +1,82 @@
+:root {
+  --bg-h: 35deg;
+  --bg-s: 40%;
+  --bg-l: 85%;
+
+
+  --container-width: 80ch;
+}
+
+html {
+  font-size: 15px;
+}
+
+body {
+
+}
+
+h2 {
+    margin-top: calc(var(--spacing-base) * 6);
+}
+
+h3 {
+    margin-top: calc(var(--spacing-base) * 3);
+}
+
+h4 {
+    margin-top: calc(var(--spacing-base) * 2);
+}
+
+h2 + h3 {
+    margin-top: 0;
+}
+
+h3 + h4 {
+    margin-top: 0;
+}
+
+h4 + h5 {
+    margin-top: 0;
+}
+
+pre, p > code, li > code, h1 > code, h2 > code, h3 > code, h4 > code, h5 > code {
+    background: hsl(var(--bg-h), var(--bg-s), calc(var(--bg-l) - 5%));
+    border-radius: 0;
+    box-shadow: none;
+}
+
+pre {
+    white-space: pre;
+}
+
+blockquote {
+    border-radius: 0;
+    box-shadow: none;
+    border: none;
+    color: #666;
+    code {
+        color: #666;
+    }
+}
+
+pre + blockquote {
+    margin-top: calc( -1 * var(--spacing-base));
+    background: none;
+}
+
+a {
+    color: rgb(35, 35, 193);
+
+}
+
+aside {
+    opacity: 0.70;
+    padding-left: 1em;
+    border-left: 3px solid #333;
+}
+
+
+nav#TableOfContents {
+    li {
+    }
+}

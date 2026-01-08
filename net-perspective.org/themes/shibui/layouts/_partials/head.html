@@ -1,0 +1,10 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ if .IsHome }}{{ site.Title }}{{ else }}{{ printf "%s | %s" .Title site.Title }}{{ end }}</title>
+{{ with .Description | default .Site.Params.description }}<meta name="description" content="{{ . }}">{{ end }}
+<meta property="og:title" content="{{ .Title }}">
+{{ with .Description | default .Site.Params.description }}<meta property="og:description" content="{{ . }}">{{ end }}
+<meta property="og:type" content="{{ if .IsPage }}article{{ else }}website{{ end }}">
+<meta property="og:url" content="{{ .Permalink }}">
+{{ partialCached "head/favicon.html" . }}
+{{ partialCached "head/css.html" . }}

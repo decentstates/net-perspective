@@ -1,0 +1,23 @@
+{{ define "main" }}
+  <!-- <h1>{{ .Title }}</h1> -->
+  <!-- {{ partial "terms.html" (dict "taxonomy" "tags" "page" .) }} -->
+
+  <!-- Content -->
+  {{ .Content }}
+  <div class="time">{{ partial "date.html" .Date}}</div>
+
+  <!-- Comments block -->
+  {{ if and .Content (default true (default .Site.Params.comments
+    .Params.comments))
+  }}
+    <div class="comments">{{- partial "comments" . -}}</div>
+  {{ end }}
+
+  {{ if not .IsHome }}
+    <div class="terminal-nav">
+      <div class="back-nav">
+        <a href="../" class="back-link">../</a>
+      </div>
+    </div>
+  {{ end }}
+{{ end }}
