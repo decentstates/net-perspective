@@ -108,7 +108,7 @@ A set of `user#context` or URIs, after combining other's publications, and follo
 
 
 
-## The Idea
+## net-perspective - The Idea
 
 You publish your direct relations, others publish their direct relations, you
 fetch and browse their relations, you relate to each others relations.
@@ -137,18 +137,22 @@ non-transitive. Doing so improves the lives of countless others downstream.
 
 You are getting spam in your rss feed, slop research is appearing in your
 contexts, you can work out who it is coming from and who is passing that along.
-A link or user goes missing one day to the next, you can see added and removed
-items when you fetch, you have an archive of historical publications and can
-track how things went missing, you can add them to your publication if you
-wish.
+A link or user goes missing one day to the next, you can see the added and
+removed items when you fetch, you have an archive of historical publications
+and can track how things went missing, you can add them to your publication if
+you wish.
 
 **net-perspective adds discovery, moderation, and curation under a single
 simple mechanism to other tools.**
 
 
-## prsp - net-perspective the tool
+## prsp - net-perspective The Tool
 
 [**_prsp_**](https://git.sr.ht/~decentstates/net-perspective/tree/main/item/prsp/README.md) (pronounced "persp" as in "perspective") is a command-line tool that can build publications, publish them, fetch publications, and build perspectives.
+
+<aside>
+Yes, a UI can come at a later stage.
+</aside>
 
 To initialize a directory run:
 ```
@@ -156,7 +160,7 @@ $ prsp init --init-generate-keys --init-name "<NAME>" --init-email "<EMAIL>"
 ```
 
 <aside>
-  Name and email are added to publications, but aren't checked.
+  Name and email are added to publications as contact details, feel free to use pseudonyms and throwaway email addresses.
 </aside>
 
 You and all users are represented by an ssh-key.
@@ -171,12 +175,9 @@ You will need to send your key to an already connected user to gain access to th
 
 `relations.edn` contains your direct relations:
 
-
 ```
 (ctx "#friend.ds"
-     (->> "mailto:ds@decentstates.com" "#self" :public)
-     (->> "https://git.sr.ht/~decentstates" "#self" :public)
-     (->> "prsp-id:ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOirp5rceowRPLnkCT2/vlTPgxtRWPeKdMIPnJ7ixJfi" "#self" :public))
+     (->> "prsp-id:ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOirp5rceowRPLnkCT2/vlTPgxtRWPeKdMIPnJ7ixJfi" "#self"))
 
 (ctx "#film"
      (->> :</friends.ds "#film" :public)
@@ -188,131 +189,99 @@ You will need to send your key to an already connected user to gain access to th
 > An example `relations.edn`
 
 
+This expands in terms of the relations syntax defined in [definitions](#some-quick-definitions) to:
+```
+:self#friends.ds ->> "prsp-id:ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOirp5rceowRPLnkCT2/vlTPgxtRWPeKdMIPnJ7ixJfi"#self
 
-### relations.edn spec
+(public) :self#film ->> "prsp-id:ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOirp5rceowRPLnkCT2/vlTPgxtRWPeKdMIPnJ7ixJfi"#film 
+(public) :self#film ->> "https://en.wikipedia.org/wiki/A_Scanner_Darkly_(film)"#
 
-#### CONTEXT-NAME
+(public) :self#music -> "https://yolatengo.bandcamp.com/album/i-can-hear-the-heart-beating-as-one-25th-anniversary-deluxe-edition"#
+```
 
-A string containing the context: `"#context"`
+Meaning your publication would be:
+```
+:self#film ->> "prsp-id:ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOirp5rceowRPLnkCT2/vlTPgxtRWPeKdMIPnJ7ixJfi"#film 
+:self#film ->> "https://en.wikipedia.org/wiki/A_Scanner_Darkly_(film)"#
+
+:self#music -> "https://yolatengo.bandcamp.com/album/i-can-hear-the-heart-beating-as-one-25th-anniversary-deluxe-edition"#
+```
 
 
-#### IDENT
+Let's now take a closer look at the syntax.
+
+
+
+#### idents
 
 An ident is how you refer to someone or something.
 
-It's just a URI:
+- Often it is **a URI string**:
 
+  ```
+  "http://en.wikipedia.org/wiki/A_Scanner_Darkly_(film)"
+  "geo:37.78918,-122.40335?z=14&(Wikimedia+Foundation)"
+  "prsp-id:ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOirp5rceowRPLnkCT2/vlTPgxtRWPeKdMIPnJ7ixJfi"
+  ```
+
+  As shown above there is a special URI scheme: `prsp-id`, which carries a ssh
+  public key. This is how you can refer to other users.
+
+- Otherwise it can be **a context-include**:
+  
+  ```
+  :</friends.ds
+  :</context.path.you.want.to.include
+  ```
+
+  It includes the identities from a contexts *perspective*, which is often used
+  as a contacts system so you don't have to use `prsp-id:` URIs all the time.
+
+  This is a subtle concept, more on this later.
+
+- Lastly it can be <strong>the symbol <code>:self</code></strong> which refers to you, so you can follow
+  yourself in different contexts.
+
+
+
+#### `(ctx ...)`, `(-> ...)`, `(->> ...)` blocks
+
+`(ctx "#subject.context" ...)` is a context-block that contains any number of either `(-> ...)` non-transitive or `(->> ...)` transitive relation-blocks.
+
+A relation block can take the following forms:
 ```
-http://en.wikipedia.org/wiki/A_Scanner_Darkly_(film)
-geo:37.78918,-122.40335?z=14&(Wikimedia+Foundation)
-prsp-id:ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOirp5rceowRPLnkCT2/vlTPgxtRWPeKdMIPnJ7ixJfi 
+(arrow ident)
+(arrow ident :public)
+(arrow ident context)
+(arrow ident context :public)
 ```
 
-As shown above there is an extension: `prsp-id`, which carries a ssh public
-key. This is how you refer to other users.
+Where arrow is one of:
+- `->` non-transitive relate.
+- `->>` transitive relate.
 
+Notes:
+- If the object-context is missing, it becomes `#` the "root context."
+- Unless a relation has `:public`, it is private and not published.
 
-
-#### CONTEXT-BLOCK
-
-A context block contains your relations under a context
-
-```
-(ctx CONTEXT-NAME RELATION-BLOCK...)
-```
-
-#### RELATION-BLOCK
-
-One of:
-```
-(-> IDENT)
-(-> IDENT :public)
-(-> IDENT CONTEXT-NAME)
-(-> IDENT CONTEXT-NAME :public)
-
-(->> IDENT)
-(->> IDENT :public)
-(->> IDENT CONTEXT-NAME)
-(->> IDENT CONTEXT-NAME :public)
-```
-
-A double arrow means it is a transitive relation.
-
-#### RELATIONS-EDN
-
-A file of CONTEXT-BLOCKs.
+<br />
 
 <aside>
+<strong>Advanced</strong>
 
-Example:
+You can add asterisks around the arrows for "globbing":
 
-```
-(ctx "#subject.context.path"
-  (-> "uri-a" "#object.context.path.a" :public)
-  (->> "uri-b" "#object.context.path.b"))
-```
+- `[arrow]*` object-glob - all the object contexts immediate children are related to under your subject context.
+- `*[arrow]*` subject-glob - you mirror as subject child contexts all of the object child contexts.
 
-Has direct relations:
-
-```
-self#subject.context.path -> "uri-a"#object.context.path.a
-self#subject.context.path ->> "uri-b"#object.context.path.b
-```
-
-And would result in the publication of:
-
-```
-self#subject.context.path -> "uri-a"#object.context.path.a
-```
-
+These are an important tool in terms of curation but not needed for everyday use.
 </aside>
 
-By default relations are private, if you want to include a relation in your publication, add `:public` to the end of the relation or super-relation block:
-```
-(ctx "#subject.context.path"
-  (-> "uri:a" "#object.context.path" :public)
-  (->> "uri:b" "#object.context.path" :public))
-```
 
-#### object globs
+### Usage
 
-`(->* ...)` or  `(->>* ...)`
+`config.edn` comes preconfigured for the moment.
 
-This is where you want to collapse all children contexts into your context.
-
-#### subject globs
-
-`(*->* ...)` or  `(*->>* ...)`
-
-If you want to carry forward someone elses categories.
-
-#### context includes
-
-A final and mysterious feature is called "context includes", this is where you
-can reference a context where you would normally have an identity or url.
-
-A context include looks like `:</subject.context.path` referring to `#subject.context.path` in your relations:
-```
-(-> :</context.i.want.to.include "#object.context.path")
-```
-
-What it does is expand the relation to all identities found in the *referenced perspective*.
-
-A key use-case is for contacts:
-
-
-
-### Example usage
-
-You build a set of relations, in your `relations.edn` like this:
-
-This implies you have the following relations:
-
-```
-you#film ->> "https://en.wikipedia.org/wiki/A_Scanner_Darkly_(film)"#
-```
-
-*This is not your publication,* by default your relations are private,
 
 
 
@@ -363,6 +332,9 @@ Perhaps multiple distinct perspectives will form that trust different people and
 You can use context to provide permissions to users in a scalable expanding way.
 
 What about human tests? An alternative to cloudflare, captchas, and anime girls checking your computer.
+
+
+### Captcha/
 
 
 ### Music recommendations
