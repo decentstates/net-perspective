@@ -16,7 +16,7 @@
           default = pkgs.mkShellNoCC {
             packages = [
               pkgs.openssh
-              net-perspective.packages.${system}.prspct
+              net-perspective.packages.${system}.prsp
             ];
           };
         };

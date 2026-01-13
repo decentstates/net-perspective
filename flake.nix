@@ -13,8 +13,8 @@
   outputs = { self, nixpkgs, nixpkgs-clojure-nix-locker, flake-utils, clojure-nix-locker, ... }:
     {
         templates.default = {
-          path = ./prspct-flake-template;
-          description = "Ready-made environment for using prspct";
+          path = ./prsp-flake-template;
+          description = "Ready-made environment for using prsp";
         };
     } //
     flake-utils.lib.eachDefaultSystem (system:
@@ -30,11 +30,11 @@
           rev = "8d4a86ad2f9d9677e1d2bd535c41168a008feeb1";
           hash = "sha256-OVDn5csKMY8pWg3JvR/ojyIDlerd+EdZnfeHAUTVanc=";
         };
-        prspct-clojure-nix-locker = clojure-nix-locker.lib.customLocker {
+        prsp-clojure-nix-locker = clojure-nix-locker.lib.customLocker {
           pkgs = pkgs-clojure-nix-locker;
           command = "${clojure}/bin/clojure -T:build ci-light";
-          lockfile = "./prspct-deps.lock.json";
-          src = ./prspct;
+          lockfile = "./prsp-deps.lock.json";
+          src = ./prsp;
         };
       in rec {
         packages.hugo-themes = pkgs.stdenv.mkDerivation {
@@ -79,11 +79,11 @@
           '';
         };
 
-        packages.prspct = pkgs.stdenv.mkDerivation {
-          pname = "prspct";
+        packages.prsp = pkgs.stdenv.mkDerivation {
+          pname = "prsp";
           version = "0.3.0";
 
-          src = ./prspct;
+          src = ./prsp;
 
           nativeBuildInputs = [
             pkgs.graalvmPackages.graalvm-ce
@@ -96,16 +96,21 @@
           ];
 
           buildPhase = ''
-            source ${prspct-clojure-nix-locker.shellEnv}
+            source ${prsp-clojure-nix-locker.shellEnv}
 
             ${clojure}/bin/clojure -T:build ci
           '';
 
           installPhase = ''
             mkdir -p $out/bin
-            mv target/org.net-perspective/prspct $out/bin/prspct
+            cp target/org.net-perspective/prsp $out/bin/prsp
+            # DEPRECATED: use prsp
+            cp target/org.net-perspective/prsp $out/bin/prspct
           '';
         };
+
+        # DEPRECATED: use prsp
+        packages.prspct = self.packages.prsp;
 
         formatter = pkgs.nixfmt-rfc-style;
         devShells = {
@@ -122,7 +127,7 @@
               pkgs.hugo
               # self.packages.${system}.hugo-with-themes
               # `clojure-nix-locker` script
-              prspct-clojure-nix-locker.locker
+              prsp-clojure-nix-locker.locker
             ];
           };
         };
