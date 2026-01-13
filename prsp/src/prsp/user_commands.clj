@@ -1,4 +1,4 @@
-(ns prspct.user-commands
+(ns prsp.user-commands
   (:require
    [clojure.pprint :refer [pprint]]
    [clojure.string :as str]
@@ -11,12 +11,12 @@
 
    [babashka.fs :as fs]
 
-   [prspct.dsl :as dsl]
-   [prspct.message-transfer :as message-transfer]
-   [prspct.publication :as publication]
-   [prspct.resolution :as resolution]
-   [prspct.schemas :as ps]
-   [prspct.lib.utils :as utils])
+   [prsp.dsl :as dsl]
+   [prsp.message-transfer :as message-transfer]
+   [prsp.publication :as publication]
+   [prsp.resolution :as resolution]
+   [prsp.schemas :as ps]
+   [prsp.lib.utils :as utils])
   (:gen-class))
 
 (defn swap-link! [link-path dst]

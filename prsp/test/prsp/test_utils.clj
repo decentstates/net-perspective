@@ -1,4 +1,4 @@
-(ns prspct.test-utils
+(ns prsp.test-utils
   (:require
    [clojure.string :as str]
    [clojure.pprint :refer [pprint]]
@@ -13,9 +13,9 @@
    [babashka.fs :as fs]
    [edamame.core :as edamame]
 
-   [prspct.dsl :as dsl]
-   [prspct.schemas :as ps]
-   [prspct.cli :as cli]))
+   [prsp.dsl :as dsl]
+   [prsp.schemas :as ps]
+   [prsp.cli :as cli]))
 
 (tel/set-min-level! :warn)
 
@@ -79,7 +79,7 @@
            (into {}
                  (map (fn [username]
                         [username
-                         (-> (str holding-dir "/" username "/.prspct/keys/id_prspct.pub")
+                         (-> (str holding-dir "/" username "/.prsp/keys/id_prsp.pub")
                              slurp
                              ps/ssh-public-key->identifier-ssh)]))
                  username-strs)

@@ -1,7 +1,7 @@
 # net-perspective
 
 See `./net-perspect.org/` for documentation.
-See `./prspct/README.md` for the tool.
+See `./prsp/README.md` for the tool.
 
 
 ### Quickstart
@@ -23,24 +23,24 @@ direnv allow
 # Otherwise:
 nix develop
 
-prspct init --init-generate-keys --init-name "Your Name or Pseudonym" --init-email "Your email"
+prsp init --init-generate-keys --init-name "Your Name or Pseudonym" --init-email "Your email"
 
 # Send your public key to someone in the #underties network to get access to the server
-cat .prspct/keys/id_prspct.pub
+cat .prsp/keys/id_prsp.pub
 
 
 # Test it out:
-prspct fetch
-prspct publish
+prsp fetch
+prsp publish
 
 # Add relations:
 vim relations.edn
 
 # Publish:
-prspct publish
+prsp publish
 
 # Build perspectives:
-prspct build tsv
+prsp build tsv
 ```
 
 

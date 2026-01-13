@@ -1,4 +1,4 @@
-(ns prspct.dsl
+(ns prsp.dsl
   (:require
    [clojure.pprint :refer [pprint]])
   (:refer-clojure :exclude [-> ->>]))

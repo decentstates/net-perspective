@@ -1,4 +1,4 @@
-(ns prspct.lib.utils
+(ns prsp.lib.utils
   (:require
    [clojure.java.io :as io]
    [clojure.java.shell :as shell]

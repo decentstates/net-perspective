@@ -6,7 +6,7 @@
     "-r" 
     "-i" :fill-in-your/private-key-path 
     "-F" "none"
-    "prspct@alpha.underties.net:/srv/prspct/."
+    "prsp@alpha.net-perspective.org:/srv/prsp/."
     :output-dir]}}
 
  :publishers 
@@ -17,7 +17,7 @@
     "-i" :fill-in-your/private-key-path
     "-F" "none"
     :input-dir-slash-dot
-    "prspct@alpha.underties.net:/srv/prspct/"]}}
+    "prsp@alpha.net-perspective.org:/srv/prsp/"]}}
 
  :publish-identities
  {:main-identity

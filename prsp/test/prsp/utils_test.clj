@@ -1,5 +1,5 @@
-;; TODO: This should be prspct.lib.utils-test
-(ns prspct.utils-test
+;; TODO: This should be prsp.lib.utils-test
+(ns prsp.utils-test
   (:require
    [clojure.java.io]
    [clojure.test :refer [deftest is testing]]
@@ -7,12 +7,12 @@
    [com.gfredericks.test.chuck.generators :as gen']
    [com.gfredericks.test.chuck.clojure-test :refer [checking]]
 
-   [prspct.schemas :as ps]
-   [prspct.test-utils]
-   [prspct.lib.utils :as sut]))
+   [prsp.schemas :as ps]
+   [prsp.test-utils]
+   [prsp.lib.utils :as sut]))
 
 
-(prspct.test-utils/deftest-ns-schemas-test)
+(prsp.test-utils/deftest-ns-schemas-test)
 
 (def sha256-test-vectors
   #^{:doc "test vectors from the NESSIE project (http://is.gd/jdM99e)"}

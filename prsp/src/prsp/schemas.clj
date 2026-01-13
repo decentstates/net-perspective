@@ -1,4 +1,4 @@
-(ns prspct.schemas
+(ns prsp.schemas
   (:require
    [clojure.string :as str]
    [clojure.set :as set]
@@ -222,12 +222,12 @@
 
 
 
-;; ### PrspctServer
+;; ### prspServer
 
-(def PrspctServerUrl
-  [:re #"prspct\+sftp://.*/server-info\.edn"])
+(def PrspServerUrl
+  [:re #"prsp\+sftp://.*/server-info\.edn"])
 
-(def PrspctServerInfo
+(def PrspServerInfo
   [:map
    [:version :string]
    [:publish-url :string]
@@ -236,17 +236,17 @@
 
 ;; ### Message Transfer
 
-(def example-publications-dir "/tmp/example-prspct/srv/np-publications")
+(def example-publications-dir "/tmp/example-prsp/srv/np-publications")
 
 (def MessageSourceConfigShell
   [:map
    [:shell/args [:vector [:or :string
                           [:= :output-dir]]]]])
 
-(def MessageSourceConfigPrspctSftp
+(def MessageSourceConfigPrspSftp
   [:map
-   [:prspct-sftp/url
-    [:re #"prspct\+sftp:.*/server-info\.edn"]]])
+   [:prsp-sftp/url
+    [:re #"prsp\+sftp:.*/server-info\.edn"]]])
 
 (defn message-source-config-dispatch [message-source-config]
   (let [namespaces (mapv namespace (keys message-source-config))]
@@ -255,13 +255,13 @@
         "shell"
         :shell
 
-        "prspct-sftp"
-        :prspct-sftp))))
+        "prsp-sftp"
+        :prsp-sftp))))
 
 (def MessageSourceConfig
   [:multi {:dispatch message-source-config-dispatch}
    [:shell #'MessageSourceConfigShell]
-   [:prspct-sftp #'MessageSourceConfigPrspctSftp]])
+   [:prsp-sftp #'MessageSourceConfigPrspSftp]])
 
 (def example-source-config
   {:shell/args ["find" example-publications-dir "-name" "*.eml" "-exec" "cp" "{}" :output-dir ";"]})
@@ -273,10 +273,10 @@
                           [:= :input-dir]
                           [:= :input-dir-slash-dot]]]]])
 
-(def MessagePublisherConfigPrspctSftp
+(def MessagePublisherConfigPrspSftp
   [:map
-   [:prspct-sftp/url
-    [:re #"prspct\+sftp:.*/server-info\.edn"]]])
+   [:prsp-sftp/url
+    [:re #"prsp\+sftp:.*/server-info\.edn"]]])
 
 (defn message-publisher-config-dispatch [message-publisher-config]
   (let [namespaces (mapv namespace (keys message-publisher-config))]
@@ -285,15 +285,15 @@
         "shell"
         :shell
 
-        "prspct-sftp"
-        :prspct-sftp)
+        "prsp-sftp"
+        :prsp-sftp)
       ; else
       :error-multiple-namespaces)))
 
 (def MessagePublisherConfig
   [:multi {:dispatch message-publisher-config-dispatch}
    [:shell #'MessagePublisherConfigShell]
-   [:prspct-sftp #'MessagePublisherConfigPrspctSftp]])
+   [:prsp-sftp #'MessagePublisherConfigPrspSftp]])
 
 (def example-publisher-config
   {:shell/args ["find" :input-dir "-name" "*.eml" "-exec" "cp" "{}" example-publications-dir ";"]})

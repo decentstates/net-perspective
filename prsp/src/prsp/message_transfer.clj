@@ -1,4 +1,4 @@
-(ns prspct.message-transfer
+(ns prsp.message-transfer
   [:require
    [taoensso.telemere :as tel]
    [taoensso.truss :refer [have have! have!? have? ex-info!]]
@@ -8,8 +8,8 @@
 
    [babashka.fs :as fs]
 
-   [prspct.lib.utils :as utils]
-   [prspct.schemas :as ps]]
+   [prsp.lib.utils :as utils]
+   [prsp.schemas :as ps]]
   [:import
    [java.time Instant]])
 

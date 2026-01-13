@@ -1,4 +1,4 @@
-(ns prspct.relation-graph-test
+(ns prsp.relation-graph-test
   (:require
    [clojure.test :refer [deftest is testing]]
    [clojure.test.check.generators :as gen]
@@ -7,12 +7,12 @@
 
    [taoensso.telemere :as tel]
 
-   [prspct.schemas :as ps]
-   [prspct.test-utils]
-   [prspct.relation-graph :as sut]))
+   [prsp.schemas :as ps]
+   [prsp.test-utils]
+   [prsp.relation-graph :as sut]))
 
 
-(prspct.test-utils/deftest-ns-schemas-test)
+(prsp.test-utils/deftest-ns-schemas-test)
 
 ;; TODO: more testing
 

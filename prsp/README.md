@@ -1,4 +1,4 @@
-# net-perspective/prspct
+# net-perspective/prsp
 
 This is a command line tool for publishing, fetching and compiling relation data.
 
@@ -41,7 +41,7 @@ Building:
 
 Nix build:
 
-    $ nix build .#prspct
+    $ nix build .#prsp
 
 
 ## config.edn
@@ -52,7 +52,7 @@ send your data to (a "publisher").
 The recommended init process comes with this file pre-configured.
 
 
-## prspct.edn
+## relations.edn
 
 This is where you store your relations.
 

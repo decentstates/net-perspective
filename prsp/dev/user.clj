@@ -43,7 +43,7 @@
     (when
       (or
         (clojure.string/starts-with? (str ns-sym) "user")
-        (clojure.string/starts-with? (str ns-sym) "prspct"))
+        (clojure.string/starts-with? (str ns-sym) "prsp"))
       (println (str "Altering namespace `" ns-sym "` with `after-in-ns`"))
       (after-in-ns)))
   (in-ns 'user))

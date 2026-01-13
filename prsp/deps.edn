@@ -23,7 +23,7 @@
 
         hiccup/hiccup                       {:mvn/version "2.0.0"}}
  :aliases
- {:run-m {:main-opts ["-m" "prspct.core"]}
+ {:run-m {:main-opts ["-m" "prsp.core"]}
 
   :build {:deps {io.github.clojure/tools.build {:mvn/version "0.10.9"}
                  com.github.clj-easy/graal-build-time {:mvn/version "1.0.5"}}

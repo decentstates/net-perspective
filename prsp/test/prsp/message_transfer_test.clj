@@ -1,4 +1,4 @@
-(ns prspct.message-transfer-test
+(ns prsp.message-transfer-test
   (:require
    [clojure.test :refer [deftest is testing]]
    [clojure.test.check.generators :as gen]
@@ -9,11 +9,11 @@
 
    [babashka.fs :as fs]
 
-   [prspct.schemas :as ps]
-   [prspct.test-utils]
-   [prspct.message-transfer :as sut]))
+   [prsp.schemas :as ps]
+   [prsp.test-utils]
+   [prsp.message-transfer :as sut]))
 
-(prspct.test-utils/deftest-ns-schemas-test)
+(prsp.test-utils/deftest-ns-schemas-test)
 
 (deftest shell-source-test
   (testing "basics"

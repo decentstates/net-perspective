@@ -1,8 +1,8 @@
-(ns prspct.core
+(ns prsp.core
   [:require
    [taoensso.telemere :as tel]
 
-   [prspct.cli :as cli]]
+   [prsp.cli :as cli]]
   (:gen-class))
 
 (defn -main [& args]

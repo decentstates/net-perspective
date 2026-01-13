@@ -1,4 +1,4 @@
-(ns prspct.cli-test
+(ns prsp.cli-test
   (:require
    [clojure.java.io]
    [clojure.test :refer [deftest is testing]]
@@ -11,14 +11,14 @@
 
    [babashka.fs :as fs]
 
-   [prspct.dsl :as dsl]
-   [prspct.schemas :as ps]
-   [prspct.test-utils :refer [with-perspects *preserve-test-data*]]
-   [prspct.lib.utils :as utils]
-   [prspct.cli :as sut]))
+   [prsp.dsl :as dsl]
+   [prsp.schemas :as ps]
+   [prsp.test-utils :refer [with-perspects *preserve-test-data*]]
+   [prsp.lib.utils :as utils]
+   [prsp.cli :as sut]))
 
 
-(prspct.test-utils/deftest-ns-schemas-test)
+(prsp.test-utils/deftest-ns-schemas-test)
 
 (deftest init-test
   (testing "basics"
@@ -28,13 +28,13 @@
              (sort [(str base-dir "")
                     (str base-dir "/relations.edn")
                     (str base-dir "/config.edn")
-                    (str base-dir "/.prspct")
-                    (str base-dir "/.prspct/fetches")
-                    (str base-dir "/.prspct/fetches/0")
-                    (str base-dir "/.prspct/fetches/0/fetch-info.edn")
-                    (str base-dir "/.prspct/.gitignore")
-                    (str base-dir "/.prspct/fetches.HEAD")
-                    (str base-dir "/.prspct/fetches.HEAD/fetch-info.edn")]))))))
+                    (str base-dir "/.prsp")
+                    (str base-dir "/.prsp/fetches")
+                    (str base-dir "/.prsp/fetches/0")
+                    (str base-dir "/.prsp/fetches/0/fetch-info.edn")
+                    (str base-dir "/.prsp/.gitignore")
+                    (str base-dir "/.prsp/fetches.HEAD")
+                    (str base-dir "/.prsp/fetches.HEAD/fetch-info.edn")]))))))
 
 
 (deftest integration-basic-roundtrip-test
@@ -190,7 +190,7 @@
                               {:shell/args
                                ["false" :output-dir ";"]})))
       (let [out-map
-            (prspct.test-utils/with-out-data-map
+            (prsp.test-utils/with-out-data-map
               ((:main a) "fetch"))]
         (is (= :error-exit
                (:res out-map)))

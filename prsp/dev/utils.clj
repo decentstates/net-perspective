@@ -15,7 +15,7 @@
 (defn output [output-stream suffix]
   (let [i   (swap! output-i inc)
         pid (.pid (java.lang.ProcessHandle/current))
-        f (str "/tmp/prspct/" pid "/output-" (format "%04d" i) suffix)]
+        f (str "/tmp/prsp/" pid "/output-" (format "%04d" i) suffix)]
     (io/make-parents f)
     (spit f output-stream)
     (println "Wrote output to" f)

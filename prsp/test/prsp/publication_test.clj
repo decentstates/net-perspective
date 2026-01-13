@@ -1,4 +1,4 @@
-(ns prspct.publication-test
+(ns prsp.publication-test
   (:require
    [clojure.string :as str]
    [clojure.test :refer [deftest is testing]]
@@ -9,13 +9,13 @@
 
    [malli.generator :as mg]
 
-   [prspct.lib.utils :as utils]
-   [prspct.schemas :as ps]
-   [prspct.publication :as sut]
-   [prspct.message-transfer :as message-transfer]
-   [prspct.test-utils]))
+   [prsp.lib.utils :as utils]
+   [prsp.schemas :as ps]
+   [prsp.publication :as sut]
+   [prsp.message-transfer :as message-transfer]
+   [prsp.test-utils]))
 
-(prspct.test-utils/deftest-ns-schemas-test)
+(prsp.test-utils/deftest-ns-schemas-test)
 
 (deftest ssh-signatures-test
   (testing "symmetry"
@@ -48,7 +48,7 @@
 
                       save-message!
                       (fn [m]
-                        (assoc-in m [:headers :prspct.message-transfer/file-path]
+                        (assoc-in m [:headers :prsp.message-transfer/file-path]
                                   (message-transfer/write-edn-message!
                                    ps/PublicationMessage
                                    m

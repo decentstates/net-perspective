@@ -1,4 +1,4 @@
-(ns prspct.publication
+(ns prsp.publication
   [:require
    [clojure.string :as str]
 
@@ -10,8 +10,8 @@
 
    [malli.core :as m]
 
-   [prspct.schemas :as ps]
-   [prspct.lib.utils :as utils]]
+   [prsp.schemas :as ps]
+   [prsp.lib.utils :as utils]]
   [:import
    [java.time Instant]
    [java.time.temporal ChronoUnit]])
@@ -102,7 +102,7 @@
   (let [publication-string
         (-> publication-message
             :headers
-            :prspct.message-transfer/file-path
+            :prsp.message-transfer/file-path
             slurp
             ps/eml->simple-message
             :body)
@@ -174,7 +174,7 @@
              ;; TODO: Licensing setting, needs to be mandatory to upload to certain places...
              :license "AGPL"
              :x-np "net-perspective.org"
-             :x-np-client "prspct"
+             :x-np-client "prsp"
              :x-np-id (publish-identity->ssh-key-id publish-identity)
              :x-np-timestamp (:publication/valid-from publication)
              :x-np-intent :publication}
@@ -193,7 +193,7 @@
 ;; TODO: test
 
 (defn message-filter-valid-publication-message [publication-message]
-  (get-in publication-message [:headers :prspct.message-transfer/publication-message?]))
+  (get-in publication-message [:headers :prsp.message-transfer/publication-message?]))
 
 (defn message-filter-valid-date [now-instant]
   (fn [publication-message]
@@ -211,7 +211,7 @@
 
 (defn message-filter-valid-signature
   [publication-message]
-  (let [ret (prspct.publication/verify-publication-message publication-message)]
+  (let [ret (prsp.publication/verify-publication-message publication-message)]
     (tel/spy! :debug ret)
     (get ret :valid? false)))
 
@@ -238,11 +238,11 @@
    (and (:message-filter:valid-publication-message? publication-message)
         (:message-filter:valid-signature? publication-message)
         (:message-filter:matching-self-identifier? publication-message))
-    {:identifier
-     (get-in publication-message [:body :publication/self-identifier])
+   {:identifier
+    (get-in publication-message [:body :publication/self-identifier])
 
-     :invalidate-until
-     (get-in publication-message [:body :publication/invalidates-previous-publications-until])}))
+    :invalidate-until
+    (get-in publication-message [:body :publication/invalidates-previous-publications-until])}))
 
 (defn message-invalidated? [publication-message invalidation]
   (let [{:keys [identifier invalidate-until]} invalidation]

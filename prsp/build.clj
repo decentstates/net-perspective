@@ -7,9 +7,9 @@
   (:import
     java.util.Date))
 
-(def lib 'org.net-perspective/prspct)
+(def lib 'org.net-perspective/prsp)
 (def version "0.3.0")
-(def main 'prspct.core)
+(def main 'prsp.core)
 (def class-dir "target/classes")
 
 (defn test "Run all the tests." [opts]

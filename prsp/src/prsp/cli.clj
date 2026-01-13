@@ -1,4 +1,4 @@
-(ns prspct.cli
+(ns prsp.cli
   (:require
    [clojure.java.io :as io]
    [clojure.pprint :refer [pprint]]
@@ -22,11 +22,11 @@
    [babashka.cli :as cli]
    [babashka.fs :as fs]
 
-   [prspct.lib.utils :as utils]
-   [prspct.message-transfer :as message-transfer]
-   [prspct.resolution :as resolution]
-   [prspct.schemas :as ps]
-   [prspct.user-commands :as user-commands])
+   [prsp.lib.utils :as utils]
+   [prsp.message-transfer :as message-transfer]
+   [prsp.resolution :as resolution]
+   [prsp.schemas :as ps]
+   [prsp.user-commands :as user-commands])
   (:gen-class))
 
 (def common-cli-spec
@@ -38,8 +38,8 @@
      :coerce :string
      ::relative-to :cwd}
 
-    :prspct-dir
-    {:default "./.prspct"
+    :prsp-dir
+    {:default "./.prsp"
      :coerce :string
      :desc "Relative to the base dir."
      ::relative-to :base-dir}
@@ -65,20 +65,20 @@
     :fetches-dir
     {:default "./fetches"
      :coerce :string
-     :desc "Relative to the prspct dir."
-     ::relative-to :prspct-dir}
+     :desc "Relative to the prsp dir."
+     ::relative-to :prsp-dir}
 
     :fetch-head-symlink-path
     {:default "./fetches.HEAD"
      :coerce :string
-     :desc "Relative to the prspct dir."
-     ::relative-to :prspct-dir}
+     :desc "Relative to the prsp dir."
+     ::relative-to :prsp-dir}
 
     :last-publish-info-path
     {:default "./last-publish-info.edn"
      :coerce :string
-     :desc "Relative to the prspct dir."
-     ::relative-to :prspct-dir}
+     :desc "Relative to the prsp dir."
+     ::relative-to :prsp-dir}
 
     :log-level
     {:desc "trace, debug, info, warn, error, fatal"
@@ -151,15 +151,15 @@
      :default false}
 
     :init-generate-keys-dir
-    {:desc "If using --init-generate-keys, the dir to generate the keys in. Will create the dir if needed. Relative to prspct dir."
+    {:desc "If using --init-generate-keys, the dir to generate the keys in. Will create the dir if needed. Relative to prsp dir."
      :coerce :string
      :default "./keys"
-     ::relative-to :prspct-dir}
+     ::relative-to :prsp-dir}
 
     :init-generate-keys-name
     {:desc "If using --init-generate-keys, the name for the key."
      :coerce :string
-     :default "id_prspct"}
+     :default "id_prsp"}
 
     :init-name
     {:desc "Name to use in your config.edn."
@@ -222,12 +222,12 @@
                     opt-pair)))
            opts)
 
-          ;; resolve relative-to prspct-dir
+          ;; resolve relative-to prsp-dir
           opts
           (into
            {}
            (map (fn [opt-pair]
-                  (if (relative-to? opt-pair :prspct-dir)
+                  (if (relative-to? opt-pair :prsp-dir)
                     (resolve-opt-pair opts opt-pair)
                     opt-pair)))
            opts)]
@@ -250,7 +250,7 @@
        (tel/error! {:level :debug} e)
        (let [exception-write-path
              (str (fs/create-temp-file
-                   {:prefix "prspct-exception-"
+                   {:prefix "prsp-exception-"
                     :suffix ".edn"}))
 
              ex-d (ex-data e)]
@@ -332,7 +332,7 @@
                                   (some #(and (= dispatch (:cmds %)) %)
                                         dispatch-table))]
             (do
-              (println (str "Usage: " (get *command-line-args* 0 "prspct") " " (::usage dispatch-spec)))
+              (println (str "Usage: " (get *command-line-args* 0 "prsp") " " (::usage dispatch-spec)))
               (when (::cmd-spec dispatch-spec)
                 (println)
                 (println "Subcommand options:")
@@ -340,7 +340,7 @@
 
             ;; else
             (do
-              (println (str "Usage: " (get *command-line-args* 0 "prspct") " sub-command [--help]"))
+              (println (str "Usage: " (get *command-line-args* 0 "prsp") " sub-command [--help]"))
               (println)
               (println "Available subcommands:")
               (println
@@ -580,17 +580,17 @@
                 init-name init-email]}
         opts]
 
-    (doseq [kw [:prspct-dir :user-config-path]]
+    (doseq [kw [:prsp-dir :user-config-path]]
       (let [p (get opts kw)]
         (when (fs/exists? p)
           (ex-info! (str "Cannot init: path `" p "` (`" kw "`) already exists.")
                     {::anom/category ::anom/incorrect
                      :opts opts}))))
 
-    (doseq [kw [:base-dir :prspct-dir :fetches-dir]]
+    (doseq [kw [:base-dir :prsp-dir :fetches-dir]]
       (fs/create-dirs (fs/path (get opts kw))))
 
-    (spit (str (fs/path (:prspct-dir opts) ".gitignore"))
+    (spit (str (fs/path (:prsp-dir opts) ".gitignore"))
           "*")
 
     (let [config-options-init

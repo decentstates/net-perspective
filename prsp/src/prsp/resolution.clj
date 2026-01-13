@@ -1,4 +1,4 @@
-(ns prspct.resolution
+(ns prsp.resolution
   [:require
    [taoensso.telemere :as tel]
    [taoensso.truss :refer [have have! have!? have? ex-info!]]
@@ -7,9 +7,9 @@
 
    [loom.graph]
 
-   [prspct.relation-graph :as rel-graph]
-   [prspct.publication :as publication]
-   [prspct.schemas :as ps]])
+   [prsp.relation-graph :as rel-graph]
+   [prsp.publication :as publication]
+   [prsp.schemas :as ps]])
 
 
 ;; ## Utils

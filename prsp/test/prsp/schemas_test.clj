@@ -1,4 +1,4 @@
-(ns prspct.schemas-test
+(ns prsp.schemas-test
   (:require
    [clojure.string :as str]
    [clojure.test :refer [deftest is testing]]
@@ -10,10 +10,10 @@
    [malli.error :as me]
    [malli.generator :as mg]
 
-   [prspct.schemas :as ps]
-   [prspct.test-utils]))
+   [prsp.schemas :as ps]
+   [prsp.test-utils]))
 
-(prspct.test-utils/deftest-ns-schemas-test)
+(prsp.test-utils/deftest-ns-schemas-test)
 
 (def CustomGenSchema
   "Schema for a Schema with custom generator"
@@ -51,7 +51,7 @@
                          [v# (mg/generator ~schema)]
                          (is (nil? (me/humanize (m/explain ~schema v#)))))))))})
 
-(create-schema-gen-tests 'prspct.schemas)
+(create-schema-gen-tests 'prsp.schemas)
 
 (deftest simple-message-test
   (checking "symmetry simple-message->eml->simple-message"

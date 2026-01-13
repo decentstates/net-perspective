@@ -1,4 +1,4 @@
-(ns prspct.lib.system
+(ns prsp.lib.system
   "Utils for wiring a reloadable system.
 
    See:

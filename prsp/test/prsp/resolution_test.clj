@@ -1,4 +1,4 @@
-(ns prspct.resolution-test
+(ns prsp.resolution-test
   (:require
    [clojure.test :refer [deftest is testing]]
    [clojure.test.check.generators :as gen]
@@ -8,13 +8,13 @@
    [taoensso.telemere :as tel]
 
 
-   [prspct.schemas :as ps]
-   [prspct.test-utils]
-   [prspct.resolution :as sut])
+   [prsp.schemas :as ps]
+   [prsp.test-utils]
+   [prsp.resolution :as sut])
   (:import
    [java.time Instant]))
 
-(prspct.test-utils/deftest-ns-schemas-test)
+(prsp.test-utils/deftest-ns-schemas-test)
 
 (deftest resolve-config-test
   (testing "basics no publication-messages"

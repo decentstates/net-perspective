@@ -1,4 +1,4 @@
-(ns prspct.relation-graph
+(ns prsp.relation-graph
   "A relation graph, relgraph for short"
   (:require
    [clojure.string :as str]
@@ -16,7 +16,7 @@
    [loom.graph :refer [digraph add-edges nodes edges successors]]
    [loom.io]
 
-   [prspct.schemas :as ps]))
+   [prsp.schemas :as ps]))
 
 
 ;; TODO: look into jgrapht as a replacement
