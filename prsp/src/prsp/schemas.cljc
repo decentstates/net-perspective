@@ -431,39 +431,43 @@
 (def IdentifierURI
   [:re
    {:gen/schema [:int {:min 0 :max 10}]
-    :gen/fmap (fn [i] (str "uri:http://example.com/" i))}
-   #"^uri:.+$"])
-
-(defn identifier-uri? [ident]
-  (and (string? ident)
-       (str/starts-with? ident "uri:")))
-
-(defn identifier-uri->uri [ident]
-  (have! identifier-uri? ident)
-  (str/replace-first ident #"^uri:" ""))
+    :gen/fmap (fn [i] (str "http://example.com/" i))}
+   #"^.+:.+$"])
 
 
 (defn identifier-dispatch [ident]
-  (cond
-    (string? ident)
-    (first (str/split ident #":" 2))
+  (cond (not (string? ident))
+        :unknown
 
-    :else
-    :unknown))
+        (str/starts-with? ident "email:")
+        "email"
+
+        (str/starts-with? ident "email:")
+        "ssh-key"
+
+        :else
+        :other-uri))
 
 (defn identifier-value [ident]
-  (cond
-    (string? ident)
+  (case (identifier-dispatch ident)
+
+    "email"
     (second (str/split ident #":" 2))
 
-    :else
+    "ssh-key"
+    (second (str/split ident #":" 2))
+
+    :other-uri
+    ident
+
     :unknown))
+    
 
 (def Identifier
   [:multi {:dispatch identifier-dispatch}
    ["email"   #'IdentifierEmail]
    ["ssh-key" #'IdentifierSSHKey]
-   ["uri"     #'IdentifierURI]])
+   [:other-uri    #'IdentifierURI]])
 
 
 ;; ### Contexts:
@@ -883,7 +887,7 @@
          (->> :</self.contacts.d "#comp.sys.nix" :public)
          (->>  "email:asdfd@fsdf" "#nix" :public)
          (->  "email:as@sdfasdfdf" "#nixos" :public)
-         (->  "uri:http://asdf.com" "#null" :public))])
+         (->  "http://asdf.com" "#null" :public))])
 
 (def UserRelationsDSLContextPart
   [:re #"^#?(?:[a-z][a-z0-9\-]*\.?)*\*?\*?$"])

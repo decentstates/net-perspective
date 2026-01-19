@@ -155,7 +155,7 @@
                                              (str "x" i))
 
                         :relation/object-pair
-                        [(str "uri:rss:feed-y-" i) "#null"]
+                        [(str "rss:feed-y-" i) "#null"]
 
                         :relation/public?
                         false

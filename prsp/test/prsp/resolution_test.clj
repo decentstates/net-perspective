@@ -24,7 +24,7 @@
                       (ctx "d"
                            (-> "email:d@test.com" "#self" :public)))
                  (ctx "food"
-                      (-> "uri:geo:37.786971,-122.399677" "#null" :public))
+                      (-> "geo:37.786971,-122.399677" "#null" :public))
                  (ctx "friends"
                       (-> :</self.contacts.d "#null" :public)))]
 
@@ -57,7 +57,7 @@
              :context-config {}
              :relations
              [#:relation{:object-pair
-                         ["uri:geo:37.786971,-122.399677" ["null"]]
+                         ["geo:37.786971,-122.399677" ["null"]]
                          :transitive? false,
                          :public? true}]}
             {:context ["friends"]
@@ -73,7 +73,7 @@
            {["self" "contacts" "d"]
             #{["email:d@test.com" ["self"]]},
             ["food"]
-            #{["uri:geo:37.786971,-122.399677" ["null"]]},
+            #{["geo:37.786971,-122.399677" ["null"]]},
             ["friends"]
             #{[:</self.contacts.d ["null"]] ["email:d@test.com" ["null"]]}}}]
 

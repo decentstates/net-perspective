@@ -254,7 +254,7 @@
           (cheshire/generate-string x {:pretty true}))]
     (with-meta matching-resolved-contexts {:serialize-fn serialize-fn})))
 
-(defn- build-flat [build-context build-idents resolved-config filter-f]
+(defn- build-flat [build-context build-idents resolved-config filter-f map-v]
   (let [matching-resolved-contexts
         (build! :edn build-context build-idents resolved-config)
 
@@ -265,7 +265,7 @@
                cat
                (map (fn [[ident _context]] ident))
                (filter filter-f)
-               (map ps/identifier-value))
+               (map map-v))
               matching-resolved-contexts)
 
         serialize-fn
@@ -276,15 +276,15 @@
 
 (defmethod build! :flat-ssh-keys
   [_ build-context build-idents resolved-config]
-  (build-flat build-context build-idents resolved-config ps/identifier-ssh-key?))
+  (build-flat build-context build-idents resolved-config ps/identifier-ssh-key? ps/identifier-value))
 
 (defmethod build! :flat-emails
   [_ build-context build-idents resolved-config]
-  (build-flat build-context build-idents resolved-config ps/identifier-email?))
+  (build-flat build-context build-idents resolved-config ps/identifier-email? ps/identifier-value))
 
 (defmethod build! :flat-uris
   [_ build-context build-idents resolved-config]
-  (build-flat build-context build-idents resolved-config ps/identifier-uri?))
+  (build-flat build-context build-idents resolved-config (constantly true) identity))
 
 (defmethod build! :tsv
   [_ build-context build-idents resolved-config]

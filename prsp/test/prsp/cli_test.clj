@@ -41,15 +41,15 @@
     (with-perspects [a
                      [(dsl/ctx "#"
                                (dsl/ctx "misc"
-                                        (dsl/-> "uri:https://wikipedia.com/" :public))
+                                        (dsl/-> "https://wikipedia.com/" :public))
                                (dsl/ctx "private"
-                                        (dsl/->> "uri:http://some-private.example.com/")
-                                        (dsl/->> "uri:http://some-other-private.example.com/" "#private"))
+                                        (dsl/->> "http://some-private.example.com/")
+                                        (dsl/->> "http://some-other-private.example.com/" "#private"))
                                (dsl/ctx "net-perspective"
-                                        (dsl/-> "uri:https://net-perspective.org" "#net-perspective.*" :public)
+                                        (dsl/-> "https://net-perspective.org" "#net-perspective.*" :public)
                                         (dsl/-> "email:admin@net-perspective.org" "#net-perspective.*" :public))
                                (dsl/ctx "net-perspective.announcements"
-                                        (dsl/->> "uri:feed:https://net-perspective.org/feed.atom" :public))
+                                        (dsl/->> "feed:https://net-perspective.org/feed.atom" :public))
                                (dsl/ctx "net-perspective.*"
                                         (dsl/->> "email:admin@net-perspective.org" "#net-perspective.*" :public)))]
 
@@ -75,23 +75,24 @@
       ((:main c) "fetch")
       (with-out-str
         (is (= {["misc"]
-                #{["uri:https://wikipedia.com/" []]}
+                #{["https://wikipedia.com/" []]}
 
                 ["private"]
-                #{["uri:http://some-private.example.com/" []]
-                  ["uri:http://some-other-private.example.com/" ["private"]]}
+                #{["http://some-private.example.com/" []]
+                  ["http://some-other-private.example.com/" ["private"]]}
 
                 ["net-perspective"]
                 #{["email:admin@net-perspective.org" ["net-perspective" "*"]]
-                  ["uri:https://net-perspective.org" ["net-perspective" "*"]]}
+                  ["https://net-perspective.org" ["net-perspective" "*"]]}
 
                 ["net-perspective" "*"]
                 #{["email:admin@net-perspective.org" ["net-perspective" "*"]]}
 
                 ["net-perspective" "announcements"]
-                #{["uri:feed:https://net-perspective.org/feed.atom" []]}}
+                #{["feed:https://net-perspective.org/feed.atom" []]}}
                ((:main a) "build" "edn" "#**")))
-        (is (= #{"http://some-private.example.com/"
+        (is (= #{"email:admin@net-perspective.org"
+                 "http://some-private.example.com/"
                  "http://some-other-private.example.com/"
                  "https://net-perspective.org"
                  "feed:https://net-perspective.org/feed.atom"
@@ -125,14 +126,14 @@
 
                 ["net-perspective" "announcements"]
                 #{[(:ident a) ["net-perspective" "announcements"]]
-                  ["uri:feed:https://net-perspective.org/feed.atom" []]}}
+                  ["feed:https://net-perspective.org/feed.atom" []]}}
                ((:main c) "build" "edn" "#**"))))))
             ;; TODO: Search the entire srv-dir for the private url 
 
 (deftest integration-multi-step-test
     (with-perspects [a
                      [(dsl/ctx "#misc-a"
-                               (dsl/-> "uri:https://wikipedia.com/" :public))]
+                               (dsl/-> "https://wikipedia.com/" :public))]
 
                      b
                      [(dsl/ctx "#contacts.a"
@@ -164,7 +165,7 @@
       ((:main d) "fetch")
       (with-out-str
         (is (= {["misc-d"]
-                #{["uri:https://wikipedia.com/" []]
+                #{["https://wikipedia.com/" []]
                   [(:ident a) ["misc-a"]]
                   [(:ident b) ["misc-b"]]
                   [(:ident c) ["misc-c"]]
@@ -178,10 +179,10 @@
                      [(dsl/ctx "#"
 
                                (dsl/ctx "net-perspective" {}
-                                        (dsl/-> "uri:net-perspective.org" "#net-perspective.*" :public)
+                                        (dsl/-> "https://net-perspective.org" "#net-perspective.*" :public)
                                         (dsl/-> "email:admin@net-perspective.org" "#net-perspective.*" :public))
                                (dsl/ctx "net-perspective.announcements" {}
-                                        (dsl/->> "uri:feed:https://net-perspective.org/feed.atom" "#net-perspective.announcements" :public))
+                                        (dsl/->> "feed:https://net-perspective.org/feed.atom" "#net-perspective.announcements" :public))
                                (dsl/ctx "net-perspective.*" {}
                                         (dsl/->> "email:admin@net-perspective.org" "#net-perspective.*" :public)))]]
       ((:update-config! a)
