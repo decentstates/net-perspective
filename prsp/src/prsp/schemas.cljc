@@ -400,6 +400,25 @@
   (have! identifier-email? ident)
   (str/replace-first ident #"^email:" ""))
 
+(def SSHKey
+  [:schema
+   {:gen/schema [:int {:min 0 :max 10}]
+    :gen/fmap (fn [i] (str "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5+invalid+key+" i "+="))}
+   [:or
+    [:re #"^ssh-dss AAAAB3NzaC1kc3[0-9A-Za-z+/]+[=]{0,3}$"]
+    [:re #"^ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNT[0-9A-Za-z+/]+[=]{0,3}$"]
+    [:re #"^ecdsa-sha2-nistp384 AAAAE2VjZHNhLXNoYTItbmlzdHAzOD[0-9A-Za-z+/]+[=]{0,3}$"]
+    [:re #"^ecdsa-sha2-nistp521 AAAAE2VjZHNhLXNoYTItbmlzdHA1Mj[0-9A-Za-z+/]+[=]{0,3}$"]
+    [:re #"^sk-ecdsa-sha2-nistp256@openssh.com AAAAInNrLWVjZHNhLXNoYTItbmlzdHAyNTZAb3BlbnNzaC5jb2[0-9A-Za-z+/]+[=]{0,3}$"]
+    [:re #"^ssh-ed25519 AAAAC3NzaC1lZDI1NTE5[0-9A-Za-z+/]+[=]{0,3}$"]
+    [:re #"^sk-ssh-ed25519@openssh.com AAAAGnNrLXNzaC1lZDI1NTE5QG9wZW5zc2guY29t[0-9A-Za-z+/]+[=]{0,3}$"]
+    [:re #"^ssh-rsa AAAAB3NzaC1yc2[0-9A-Za-z+/]+[=]{0,3}$"]]])
+
+(defn clean-ssh-key [s]
+  (m/coerce #'SSHKey
+            ;; We have to strip the comment off the ssh key
+            (re-find #"[a-z0-9\.@\-]+ [0-9A-Za-z+/]+[=]{0,3}" s)))
+
 (def IdentifierSSHKey
   [:schema
    {:gen/schema [:int {:min 0 :max 10}]
@@ -419,6 +438,10 @@
             (str "ssh-key:"
          ;; We have to strip the comment off the ssh key
                  (re-find #"[a-z0-9\.@\-]+ [0-9A-Za-z+/]+[=]{0,3}" s))))
+
+(defn clean-ssh-key-identifier [s]
+  (ssh-public-key->identifier-ssh
+    (str/replace s #"^ssh-key:" "")))
 
 (defn identifier-ssh-key? [ident]
   (and (string? ident)
@@ -940,6 +963,14 @@
                [:* :any]]]]]])
 
 
+(defn clean-object-identifier [s]
+  (cond 
+    (str/starts-with? s "ssh-key:")
+    (clean-ssh-key-identifier s)
+    
+    :else
+    s))
+
 (defn parse-user-relations-dsl-relation
   ([transitivity object-identifier]
    (parse-user-relations-dsl-relation transitivity object-identifier "#" false))
@@ -957,7 +988,7 @@
      (ex-info! (str "Unknown parameter in relation"))))
 
   ([transitivity object-identifier object-context public?]
-   {:relation/object-pair [object-identifier (context->internal-context object-context)]
+   {:relation/object-pair [(clean-object-identifier object-identifier) (context->internal-context object-context)]
     :relation/transitive? (= '->> transitivity)
     :relation/public? (= :public public?)}))
 
