@@ -137,6 +137,12 @@
   (let [{:keys [context relations]} working-context]
     (into []
           (comp
+           (map
+            (fn [rel]
+              (if (= :self 
+                     (first (:relation/object-pair rel)))
+                  (assoc-in rel [:relation/object-pair 0] self-identifier)
+                  rel)))
            (filter
             (fn [rel]
               (and (not (keyword? (first (:relation/object-pair rel))))
