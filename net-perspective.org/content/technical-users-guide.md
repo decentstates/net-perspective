@@ -1,6 +1,6 @@
-## prspct init
+## prsp init
 
-## prspct.edn
+## relations.edn
 
 ## Publication Invalidation
 

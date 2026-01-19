@@ -1,5 +1,5 @@
 {:sources
- {:underties-source
+ {:net-perspective-alpha-source
   {:shell/args
    ;; TODO: Need to set the cwd to the parent of the config file...
    ["scp" 
@@ -10,7 +10,7 @@
     :output-dir]}}
 
  :publishers 
- {:underties-publisher 
+ {:net-perspective-alpha-publisher 
   {:shell/args
    ["scp"
     "-r"
@@ -27,9 +27,9 @@
    :ssh-key-id/private-key-path :fill-in-your/private-key-path}}
 
  :publish-configs
- {:underties-publish-config
-  {:publisher :underties-publisher
+ {:net-perspective-alpha-publish-config
+  {:publisher :net-perspective-alpha-publisher
    :identity :main-identity}}
 
  :default-publish-configs
- [:underties-publish-config]}
+ [:net-perspective-alpha-publish-config]}
