@@ -7,7 +7,7 @@
 
    [cognitect.anomalies :as anom]
 
-   [babashka.fs :as fs]
+   #?(:clj [babashka.fs :as fs])
 
    [taoensso.telemere :as tel]
    [taoensso.truss :refer [have have! have!? have? ex-info!]]
@@ -22,8 +22,9 @@
    [malli.generator :as mg]
    [malli.registry :as mr]
    [malli.transform :as mt])
-  (:import
-   [java.time OffsetDateTime ZoneOffset]))
+  #?(:clj
+      (:import
+       [java.time OffsetDateTime ZoneOffset])))
 
 
 ;; ## Schema system setup
@@ -770,19 +771,21 @@
   [:string
    {::file-path true}])
 
+
 (defn file-path-transformer [path-relative-to]
   (mt/transformer
-   {:default-decoder
-    {:compile
-     (fn [schema _]
-       (when (get (m/properties schema) ::file-path)
-         (fn [f]
-           (as-> f $
-             (fs/expand-home $)
-             (if (fs/relative? $)
-               (fs/path path-relative-to $)
-               $)
-             (str $)))))}}))
+    #?(:clj {:default-decoder
+              {:compile
+               (fn [schema _]
+                 (when (get (m/properties schema) ::file-path)
+                   (fn [f]
+                     (as-> f $
+                       (fs/expand-home $)
+                       (if (fs/relative? $)
+                         (fs/path path-relative-to $)
+                         $)
+                       (str $)))))}}
+       :cljs {})))
 
 (def PublishToName :string)
 (def PublishToEmail [:re #"^.*@.*$"])
