@@ -719,19 +719,17 @@
    mt/string-transformer))
 
 (defn encode-publication-signature [publication-signature]
-  (json/generate-string
+  (pr-str
    (m/encode
     #'PublicationSignature
     publication-signature
     publication-signature-transformer)))
 
 (defn decode-publication-signature [encoded-publication-signature]
-  (try
-    (m/decode
-     #'PublicationSignature
-     (json/parse-string encoded-publication-signature)
-     publication-signature-transformer)
-    (catch Exception _ nil)))
+  (m/decode
+   #'PublicationSignature
+   (edamame/parse-string encoded-publication-signature)
+   publication-signature-transformer))
 
 
 ;; ### Publications
