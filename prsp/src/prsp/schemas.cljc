@@ -14,6 +14,8 @@
 
    [edamame.core :as edamame]
 
+   #?(:clj [cheshire.core :as json])
+
    [malli.core :as m]
    [malli.experimental.time :as met]
    [malli.experimental.time.generator]
@@ -169,16 +171,19 @@
    (mt/key-transformer {:encode name :decode keyword})
    mt/string-transformer))
 
+(def body-json-transformer
+  (mt/transformer
+   (mett/time-transformer)
+   (mt/key-transformer {:encode #(subs (str %) 1) :decode keyword})
+   mt/string-transformer))
+
 
 (defn encode-edn-message-body [msg-schema body]
   (let [;; TODO: I think this is a bug in malli:
         msg-schema' (if (var? msg-schema) (deref msg-schema) msg-schema)
         body-schema (get (m/properties msg-schema') :email/body-schema)]
-    (with-out-str
-      (pprint
-       (m/encode body-schema
-                 body
-                 (mett/time-transformer))))))
+    (json/generate-string
+     (m/encode body-schema body body-json-transformer))))
 
 
 (defn edn-message->simple-message [msg-schema msg]
@@ -205,8 +210,8 @@
      :body
      (m/coerce
       body-schema
-      (edamame/parse-string (:body simple-message))
-      (mett/time-transformer))}))
+      (json/parse-string (:body simple-message))
+      body-json-transformer)}))
 
 
 (defn edn-message->eml [msg-schema msg]
@@ -714,17 +719,19 @@
    mt/string-transformer))
 
 (defn encode-publication-signature [publication-signature]
-  (pr-str
+  (json/generate-string
    (m/encode
     #'PublicationSignature
     publication-signature
     publication-signature-transformer)))
 
 (defn decode-publication-signature [encoded-publication-signature]
-  (m/decode
-   #'PublicationSignature
-   (edamame/parse-string encoded-publication-signature)
-   publication-signature-transformer))
+  (try
+    (m/decode
+     #'PublicationSignature
+     (json/parse-string encoded-publication-signature)
+     publication-signature-transformer)
+    (catch Exception _ nil)))
 
 
 ;; ### Publications
