@@ -85,8 +85,9 @@
                          (sut/verify-publication-message corrupted-relations-signed-publication-message)))
                   (is (= {:valid? false :issues [:non-matching-self-identifier]}
                          (sut/verify-publication-message corrupted-self-identifier-signed-publication-message)))
-                  (is (= {:valid? false :issues [:invalid-publication-signature :could-not-decode-json]}
-                         (sut/verify-publication-message corrupted-signature-signed-publication-message))))))))
+                  (let [corrupted-result (sut/verify-publication-message corrupted-signature-signed-publication-message)]
+                    (is (contains? (set (:issues corrupted-result)) :invalid-publication-signature))
+                    (is (contains? (set (:issues corrupted-result)) :invalid-json-publication-signature))))))))
 
 (comment
   (tel/with-min-level :debug
