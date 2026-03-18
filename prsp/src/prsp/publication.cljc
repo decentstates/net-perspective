@@ -105,35 +105,34 @@
             :prsp.message-transfer/file-path
             slurp
             ps/eml->simple-message
-            :body)
+            :body)]
+    (try
+      (let [publication-signature
+            (ps/decode-publication-signature
+             (get-in publication-message [:headers :x-np-signature]))
 
-        publication-signature
-        (try
-          (ps/decode-publication-signature
-           (get-in publication-message [:headers :x-np-signature]))
-          (catch Exception _
-            nil))
+            valid-publication-signature?
+            (m/validate #'ps/PublicationSignature publication-signature)]
 
-        valid-publication-signature?
-        (m/validate #'ps/PublicationSignature publication-signature)]
+        (if-not valid-publication-signature?
+          {:valid? false
+           :issues [:invalid-publication-signature]}
+          (let [public-key
+                (-> publication-signature :id ps/identifier-ssh-key->ssh-key)
 
-    (if-not valid-publication-signature?
-      {:valid? false
-       :issues [:invalid-publication-signature]}
-      (let [public-key
-            (-> publication-signature :id ps/identifier-ssh-key->ssh-key)
+                matching-self-identifier?
+                (= (get-in publication-message [:body :publication/self-identifier])
+                   (:id publication-signature))
 
-            matching-self-identifier?
-            (= (get-in publication-message [:body :publication/self-identifier])
-               (:id publication-signature))
-
-            ssh-signature
-            (-> publication-signature :signature)]
-        (if-not matching-self-identifier?
-          {:valid? false :issues [:non-matching-self-identifier]}
-          (if-not (verify-ssh-signature publication-string ssh-signature public-key)
-            {:valid? false :issues [:failed-signature-verification]}
-            {:valid? true}))))))
+                ssh-signature
+                (-> publication-signature :signature)]
+            (if-not matching-self-identifier?
+              {:valid? false :issues [:non-matching-self-identifier]}
+              (if-not (verify-ssh-signature publication-string ssh-signature public-key)
+                {:valid? false :issues [:failed-signature-verification]}
+                {:valid? true})))))
+      (catch com.fasterxml.jackson.core.JsonParseException _
+        {:valid? false :issues [:invalid-publication-signature]}))))
 
 (m/=> publishable-relations [:=> [:cat #'ps/Identifier #'ps/WorkingContext] [:vector #'ps/Relation]])
 (defn publishable-relations [self-identifier working-context]
