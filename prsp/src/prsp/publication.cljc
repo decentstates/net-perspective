@@ -121,7 +121,7 @@
       {:valid? false
        :issues (cond-> [:invalid-publication-signature]
                  (= publication-signature ::could-not-decode-json)
-                 (conj ::could-not-decode-json))}
+                 (conj :could-not-decode-json))}
       (let [public-key
             (-> publication-signature :id ps/identifier-ssh-key->ssh-key)
 
