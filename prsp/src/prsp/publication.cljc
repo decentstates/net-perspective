@@ -108,8 +108,11 @@
             :body)
 
         publication-signature
-        (ps/decode-publication-signature
-         (get-in publication-message [:headers :x-np-signature]))
+        (try
+          (ps/decode-publication-signature
+           (get-in publication-message [:headers :x-np-signature]))
+          (catch Exception _
+            nil))
 
         valid-publication-signature?
         (m/validate #'ps/PublicationSignature publication-signature)]

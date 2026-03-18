@@ -719,7 +719,7 @@
    mt/string-transformer))
 
 (defn encode-publication-signature [publication-signature]
-  (pr-str
+  (json/generate-string
    (m/encode
     #'PublicationSignature
     publication-signature
@@ -728,7 +728,7 @@
 (defn decode-publication-signature [encoded-publication-signature]
   (m/decode
    #'PublicationSignature
-   (edamame/parse-string encoded-publication-signature)
+   (json/parse-string encoded-publication-signature)
    publication-signature-transformer))
 
 
