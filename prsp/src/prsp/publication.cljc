@@ -108,15 +108,20 @@
             :body)
 
         publication-signature
-        (ps/decode-publication-signature
-         (get-in publication-message [:headers :x-np-signature]))
+        (try
+          (ps/decode-publication-signature
+           (get-in publication-message [:headers :x-np-signature]))
+          (catch com.fasterxml.jackson.core.JsonParseException _
+            ::invalid-json-publication-signature))
 
         valid-publication-signature?
         (m/validate #'ps/PublicationSignature publication-signature)]
 
     (if-not valid-publication-signature?
       {:valid? false
-       :issues [:invalid-publication-signature]}
+       :issues (cond-> [:invalid-publication-signature]
+                 (= publication-signature ::invalid-json-publication-signature)
+                 (conj :invalid-json-publication-signature))}
       (let [public-key
             (-> publication-signature :id ps/identifier-ssh-key->ssh-key)
 

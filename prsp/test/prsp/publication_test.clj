@@ -75,9 +75,14 @@
                           (assoc-in [:body :publication/self-identifier] "email:charlie@example.com")
                           save-message!)
 
-                      corrupted-signature-signed-publication-message
+                      invalid-json-signature-message
                       (-> signed-publication-message
                           (assoc-in [:headers :x-np-signature] "asdf")
+                          save-message!)
+
+                      invalid-structure-signature-message
+                      (-> signed-publication-message
+                          (assoc-in [:headers :x-np-signature] "{\"not-a\":\"valid-signature\"}")
                           save-message!)]
                   (is (= {:valid? true}
                          (sut/verify-publication-message signed-publication-message)))
@@ -85,8 +90,10 @@
                          (sut/verify-publication-message corrupted-relations-signed-publication-message)))
                   (is (= {:valid? false :issues [:non-matching-self-identifier]}
                          (sut/verify-publication-message corrupted-self-identifier-signed-publication-message)))
+                  (is (= {:valid? false :issues [:invalid-publication-signature :invalid-json-publication-signature]}
+                         (sut/verify-publication-message invalid-json-signature-message)))
                   (is (= {:valid? false :issues [:invalid-publication-signature]}
-                         (sut/verify-publication-message corrupted-signature-signed-publication-message))))))))
+                         (sut/verify-publication-message invalid-structure-signature-message))))))))
 
 (comment
   (tel/with-min-level :debug
