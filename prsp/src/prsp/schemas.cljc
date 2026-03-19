@@ -811,6 +811,12 @@
                (fn [schema _]
                  (when (get (m/properties schema) ::file-path)
                    (fn [f]
+                     (when (keyword? f)
+                       (ex-info! (str "Config file path is an unfilled placeholder: " f
+                                      "\nRun `prsp init --init-generate-keys` to generate SSH keys,"
+                                      " or fill in the path manually in your config.edn.")
+                                 {::anom/category ::anom/incorrect
+                                  :placeholder f}))
                      (as-> f $
                        (fs/expand-home $)
                        (if (fs/relative? $)

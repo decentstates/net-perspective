@@ -34,7 +34,10 @@
                     (str base-dir "/.prsp/fetches/0/fetch-info.edn")
                     (str base-dir "/.prsp/.gitignore")
                     (str base-dir "/.prsp/fetches.HEAD")
-                    (str base-dir "/.prsp/fetches.HEAD/fetch-info.edn")]))))))
+                    (str base-dir "/.prsp/fetches.HEAD/fetch-info.edn")
+                    (str base-dir "/.prsp/keys")
+                    (str base-dir "/.prsp/keys/id_prsp")
+                    (str base-dir "/.prsp/keys/id_prsp.pub")]))))))
 
 
 (deftest integration-basic-roundtrip-test

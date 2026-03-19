@@ -148,7 +148,7 @@
     :init-generate-keys
     {:desc "Generate a key-pair during init."
      :coerce :boolean
-     :default false}
+     :default true}
 
     :init-generate-keys-dir
     {:desc "If using --init-generate-keys, the dir to generate the keys in. Will create the dir if needed. Relative to prsp dir."
@@ -164,10 +164,10 @@
     :init-name
     {:desc "Name to use in your config.edn."
      :coerce :string
-     :required false}
+     :default "Anonymous"}
 
     :init-email
-    {:desc "Email to use in your config.edn."
+    {:desc "Email to use in your config.edn. Defaults to a generated address."
      :coerce :string
      :required false})})
 
@@ -623,9 +623,9 @@
               (assoc $ :fill-in-your/name init-name)
               $)
 
-            (if init-email
-              (assoc $ :fill-in-your/email init-email)
-              $))
+            (assoc $ :fill-in-your/email
+                   (or init-email
+                       (str (java.util.UUID/randomUUID) "@example.com"))))
 
           config-options
           (walk/postwalk-replace replacements config-options-init)]
