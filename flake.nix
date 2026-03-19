@@ -1,16 +1,14 @@
 {
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
-    # TODO: Updated clojure-nix-locker
-    nixpkgs-clojure-nix-locker.url = "github:NixOS/nixpkgs/nixos-25.05";
     flake-utils.url = "github:numtide/flake-utils";
 
     clojure-nix-locker.url = "github:bevuta/clojure-nix-locker";
-    clojure-nix-locker.inputs.nixpkgs.follows = "nixpkgs-clojure-nix-locker";
+    clojure-nix-locker.inputs.nixpkgs.follows = "nixpkgs";
     clojure-nix-locker.inputs.flake-utils.follows = "flake-utils";
   };
 
-  outputs = { self, nixpkgs, nixpkgs-clojure-nix-locker, flake-utils, clojure-nix-locker, ... }:
+  outputs = { self, nixpkgs, flake-utils, clojure-nix-locker, ... }:
     {
         templates.default = {
           path = ./prsp-flake-template;
@@ -21,7 +19,6 @@
       let
         lib = nixpkgs.lib;
         pkgs = import nixpkgs { inherit system; };
-        pkgs-clojure-nix-locker = import nixpkgs-clojure-nix-locker { inherit system; };
         jdk = pkgs.graalvmPackages.graalvm-ce;
         clojure = (pkgs.clojure.override { inherit jdk; });
         hugo-shibui-theme = pkgs.fetchFromGitHub {
@@ -31,7 +28,7 @@
           hash = "sha256-OVDn5csKMY8pWg3JvR/ojyIDlerd+EdZnfeHAUTVanc=";
         };
         prsp-clojure-nix-locker = clojure-nix-locker.lib.customLocker {
-          pkgs = pkgs-clojure-nix-locker;
+          inherit pkgs;
           command = "${clojure}/bin/clojure -T:build ci-light";
           lockfile = "./prsp-deps.lock.json";
           src = ./prsp;
@@ -79,9 +76,11 @@
           '';
         };
 
+        packages.prsp-clojure-nix-locker = prsp-clojure-nix-locker;
+
         packages.prsp = pkgs.stdenv.mkDerivation {
           pname = "prsp";
-          version = "0.3.0";
+          version = "0.3.1";
 
           src = ./prsp;
 
@@ -104,13 +103,8 @@
           installPhase = ''
             mkdir -p $out/bin
             cp target/org.net-perspective/prsp $out/bin/prsp
-            # DEPRECATED: use prsp
-            cp target/org.net-perspective/prsp $out/bin/prspct
           '';
         };
-
-        # DEPRECATED: use prsp
-        packages.prspct = self.packages.prsp;
 
         formatter = pkgs.nixfmt-rfc-style;
         devShells = {

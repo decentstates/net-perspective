@@ -6,15 +6,15 @@
           "flake-utils"
         ],
         "nixpkgs": [
-          "nixpkgs-clojure-nix-locker"
+          "nixpkgs"
         ]
       },
       "locked": {
-        "lastModified": 1751367560,
-        "narHash": "sha256-zWruPR1paNegAiRLOcM3dzVv//ApagRpvcICqwSnIgQ=",
+        "lastModified": 1767628431,
+        "narHash": "sha256-9JHKdlgDspXbBTE9b+bYYBMfXzBwHMUymY9DUHIvZrQ=",
         "owner": "bevuta",
         "repo": "clojure-nix-locker",
-        "rev": "e54776a122c6410867807e671e0cadd899b18853",
+        "rev": "d706ad2804bf8237a61171757b44783042bc9fee",
         "type": "github"
       },
       "original": {
@@ -43,11 +43,11 @@
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1767480499,
-        "narHash": "sha256-8IQQUorUGiSmFaPnLSo2+T+rjHtiNWc+OAzeHck7N48=",
+        "lastModified": 1773814637,
+        "narHash": "sha256-GNU+ooRmrHLfjlMsKdn0prEKVa0faVanm0jrgu1J/gY=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "30a3c519afcf3f99e2c6df3b359aec5692054d92",
+        "rev": "fea3b367d61c1a6592bc47c72f40a9f3e6a53e96",
         "type": "github"
       },
       "original": {
@@ -57,28 +57,11 @@
         "type": "github"
       }
     },
-    "nixpkgs-clojure-nix-locker": {
-      "locked": {
-        "lastModified": 1767051569,
-        "narHash": "sha256-0MnuWoN+n1UYaGBIpqpPs9I9ZHW4kynits4mrnh1Pk4=",
-        "owner": "NixOS",
-        "repo": "nixpkgs",
-        "rev": "40ee5e1944bebdd128f9fbada44faefddfde29bd",
-        "type": "github"
-      },
-      "original": {
-        "owner": "NixOS",
-        "ref": "nixos-25.05",
-        "repo": "nixpkgs",
-        "type": "github"
-      }
-    },
     "root": {
       "inputs": {
         "clojure-nix-locker": "clojure-nix-locker",
         "flake-utils": "flake-utils",
-        "nixpkgs": "nixpkgs",
-        "nixpkgs-clojure-nix-locker": "nixpkgs-clojure-nix-locker"
+        "nixpkgs": "nixpkgs"
       }
     },
     "systems": {
