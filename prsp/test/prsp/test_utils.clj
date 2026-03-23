@@ -33,7 +33,7 @@
         (.write *err* err)
         (if (not= 0 exit)
           :error-exit
-          (edamame/parse-string out))))))
+          (edamame/parse-string out {:default tagged-literal}))))))
 
 (def ^:dynamic *main*
   (if-let [binary (System/getenv "PRSP_BINARY")]
