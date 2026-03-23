@@ -133,6 +133,16 @@
     (clojure.pprint/pprint a)
     (clojure.pprint/pprint b)))
 
+(defn find-prsp-base-dir
+  "Walk up from `start` looking for a directory that contains a .prsp subdirectory.
+   Returns the containing directory as a string, or nil if none found."
+  [start]
+  (loop [dir (fs/canonicalize start)]
+    (cond
+      (nil? dir)                            nil
+      (fs/exists? (fs/path dir ".prsp"))    (str dir)
+      :else                                 (recur (fs/parent dir)))))
+
 (defn multigroup-by
   "Group by items in an array, if there are multiple items the element will be in more than one
   group, returns a set. (f x) must return a sequential."

@@ -541,6 +541,18 @@
                       {:user-config user-config
                        :resolved-config resolved-config})))))
 
+(defn middleware-discover-base-dir [handler]
+  (fn [ctx]
+    (let [opts     (:opts ctx)
+          base-dir (:base-dir opts)]
+      ;; Only apply discovery when base-dir is the spec default ("./" — not yet resolved).
+      (if (= base-dir "./")
+        (let [cwd      (str (fs/canonicalize "."))
+              resolved (or (utils/find-prsp-base-dir cwd)
+                           (str (fs/path (fs/home) ".config" "prsp")))]
+          (handler (assoc-in ctx [:opts :base-dir] resolved)))
+        (handler ctx)))))
+
 (defn middleware-with-cwd [handler]
   (fn [ctx]
     (let [opts (:opts ctx)
@@ -561,6 +573,7 @@
    middleware-help
    middleware-print-build-info
    middleware-version
+   middleware-discover-base-dir
    middleware-normalize-paths
    middleware-with-cwd
    middleware-print-cli-options))
