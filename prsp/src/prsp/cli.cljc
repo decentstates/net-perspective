@@ -38,7 +38,7 @@
      ::relative-to :cwd}
 
     :prsp-dir
-    {:default "./.data"
+    {:default "./store"
      :coerce :string
      :desc "Relative to the base dir."
      ::relative-to :base-dir}
