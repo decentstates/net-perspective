@@ -1,0 +1,75 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'prsp-v*'
+
+jobs:
+  build:
+    name: Build ${{ matrix.os }}-${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            os: linux
+            arch: x86_64
+          - runner: ubuntu-24.04-arm
+            os: linux
+            arch: arm64
+          - runner: macos-13
+            os: macos
+            arch: x86_64
+          - runner: macos-latest
+            os: macos
+            arch: arm64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: '21'
+          distribution: 'graalvm'
+          native-image-job-reports: 'true'
+
+      - uses: DeLaGuardo/setup-clojure@13
+        with:
+          cli: latest
+
+      - name: Build native image
+        working-directory: prsp
+        run: clojure -T:build ci
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: prsp-${{ matrix.os }}-${{ matrix.arch }}
+          path: prsp/target/org.net-perspective/prsp
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Rename artifacts
+        run: |
+          for dir in artifacts/prsp-*/; do
+            name=$(basename "$dir")
+            mv "$dir/prsp" "artifacts/$name"
+            rmdir "$dir"
+          done
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/prsp-*
+          generate_release_notes: true

@@ -1,14 +1,15 @@
 (ns build
   (:refer-clojure :exclude [test])
-  (:require 
+  (:require
     [clojure.pprint :refer [pprint]]
+    [clojure.string :as str]
     [clojure.java.shell :as shell]
     [clojure.tools.build.api :as b])
   (:import
     java.util.Date))
 
 (def lib 'org.net-perspective/prsp)
-(def version "0.3.0")
+(def version (str/trim (slurp "VERSION")))
 (def main 'prsp.core)
 (def class-dir "target/classes")
 
