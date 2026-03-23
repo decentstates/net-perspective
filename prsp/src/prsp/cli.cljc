@@ -27,8 +27,6 @@
    [prsp.resolution :as resolution]
    [prsp.schemas :as ps]
    [prsp.user-commands :as user-commands])
-  (:import
-    [java.io PrintWriter])
   (:gen-class))
 
 (def common-cli-spec
@@ -291,11 +289,11 @@
   (fn [ctx]
     (let [output-return-edn-alt-out-path (get-in ctx [:opts :output-return-edn])]
       (if output-return-edn-alt-out-path
-        (let [ret
-              (binding [*out* (PrintWriter. output-return-edn-alt-out-path)]
-                (handler ctx))]
-          (prn ret)
-          ret)
+        (with-open [writer (io/writer output-return-edn-alt-out-path)]
+          (let [ret (binding [*out* writer]
+                      (handler ctx))]
+            (prn ret)
+            ret))
         ; else
         (handler ctx)))))
 
