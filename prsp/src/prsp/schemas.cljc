@@ -223,6 +223,26 @@
    msg-schema
    (eml->simple-message eml)))
 
+#?(:clj
+   (defn simple-message->json [simple-message]
+     (json/generate-string
+      {"headers" (:headers simple-message)
+       "body" (:body simple-message)})))
+
+#?(:clj
+   (defn json->simple-message [json-str]
+     (let [parsed (json/parse-string json-str)]
+       {:headers (get parsed "headers")
+        :body (get parsed "body")})))
+
+#?(:clj
+   (defn edn-message->json [msg-schema msg]
+     (simple-message->json (edn-message->simple-message msg-schema msg))))
+
+#?(:clj
+   (defn json->edn-message [msg-schema json-str]
+     (simple-message->edn-message msg-schema (json->simple-message json-str))))
+
 (comment
   (edn-message->simple-message #'ExampleMessage (mg/generate #'ExampleMessage)))
 
@@ -270,7 +290,7 @@
    [:prsp-sftp #'MessageSourceConfigPrspSftp]])
 
 (def example-source-config
-  {:shell/args ["find" example-publications-dir "-name" "*.eml" "-exec" "cp" "{}" :output-dir ";"]})
+  {:shell/args ["find" example-publications-dir "-name" "*.json" "-exec" "cp" "{}" :output-dir ";"]})
 
 
 (def MessagePublisherConfigShell
@@ -302,7 +322,7 @@
    [:prsp-sftp #'MessagePublisherConfigPrspSftp]])
 
 (def example-publisher-config
-  {:shell/args ["find" :input-dir "-name" "*.eml" "-exec" "cp" "{}" example-publications-dir ";"]})
+  {:shell/args ["find" :input-dir "-name" "*.json" "-exec" "cp" "{}" example-publications-dir ";"]})
 
 (def MessageTransferResult
   [:map
