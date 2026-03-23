@@ -21,7 +21,7 @@ For each big task you start, create a new section under little tasks following t
 - [x] Update write-edn-message! and load-fetch in message_transfer.cljc
 - [x] Update sign/verify in publication.cljc
 - [x] Update tests
-- [ ] Create PR to decentstates/net-perspective
+- [x] Create PR to decentstates/net-perspective
 
 ### (big task name)
 - [ ] create plan in ./plans/
