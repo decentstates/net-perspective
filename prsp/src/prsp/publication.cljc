@@ -70,10 +70,8 @@
 (defn sign-publication-message [publish-identity publication-message]
   (have! #(not (contains? % :x-np-signature)) (:headers publication-message))
   (let [publication-string
-        (->> publication-message
-             (ps/edn-message->eml ps/PublicationMessage)
-             ps/eml->simple-message
-             :body)
+        (-> (ps/edn-message->simple-message ps/PublicationMessage publication-message)
+            :body)
 
         id
         (publish-identity->ssh-key-id publish-identity)
@@ -104,7 +102,7 @@
             :headers
             :prsp.message-transfer/file-path
             slurp
-            ps/eml->simple-message
+            ps/json->simple-message
             :body)
 
         publication-signature

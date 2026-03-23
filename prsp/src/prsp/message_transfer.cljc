@@ -89,7 +89,7 @@
   "Provide args to provide to clojure.java.shell/sh
 
   In args, :input-dir, :input-dir-slash-dot keywords will be substituted.
-  The expectation is to publish all .eml files.
+  The expectation is to publish all .json files.
   "
   [publisher-config]
   (reify MessagePublisher
@@ -201,19 +201,19 @@
         fetch-info (-> fetch-info-path slurp ps/decode-fetch-info)]
     (for [[_ fetch-info-source] (:fetch-info/sources fetch-info)
           :let [output-dir (str fetch-dir "/" (:fetch-info-source/output-dir fetch-info-source))]
-          file (map str (fs/glob output-dir "**.eml"))]
+          file (map str (fs/glob output-dir "**.json"))]
       (let [contents
             (slurp file)
 
             message
             (try
-              (-> (ps/eml->edn-message ps/PublicationMessage contents)
+              (-> (ps/json->edn-message ps/PublicationMessage contents)
                   (assoc-in [:headers ::publication-message?] true))
               (catch Exception publication-message-exception
                 (try
                   {:headers {::publication-message? false
                              ::publication-message-exception publication-message-exception}
-                   :body (ps/eml->simple-message contents)}
+                   :body (ps/json->simple-message contents)}
                   (catch Exception simple-message-exception
                     {:headers {::publication-message? false
                                ::publication-message-exception publication-message-exception
@@ -225,19 +225,19 @@
 
 
 (defn write-edn-message! [message-schema message output-dir]
-  (let [eml (ps/edn-message->eml message-schema message)
+  (let [json (ps/edn-message->json message-schema message)
         ;; TODO: Maybe can hash only some of the fields instead of all of them.
-        eml-hash   (utils/sha256 eml)
-        filename (str eml-hash ".eml")
+        content-hash (utils/sha256 json)
+        filename (str content-hash ".json")
         write-path (str output-dir "/" filename)]
-    (spit write-path eml)
+    (spit write-path json)
     write-path))
 
 (comment
   (write-edn-message! #'ps/ExampleMessage (mg/generate ps/ExampleMessage) "/tmp/np-holding-space"))
 
 
-;; TODO: Add content-type: text/edn or application/x-np-publication+edn
+;; TODO: Add content-type: application/x-np-publication+json
 (m/=> write-edn-message-envelopes! [:=> [:cat [:vector ps/EDNMessageEnvelope] :string]
                                     [:map-of ps/MessagePublisherConfig :string]])
 (defn write-edn-message-envelopes! [edn-message-envelopes output-dir]
