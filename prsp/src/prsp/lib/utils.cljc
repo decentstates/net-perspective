@@ -133,6 +133,11 @@
     (clojure.pprint/pprint a)
     (clojure.pprint/pprint b)))
 
+(defn random-guerrilla-mail []
+  (let [uid (str (java.util.UUID/randomUUID))
+        short (subs (clojure.string/replace uid "-" "") 0 8)]
+    (str "prsp-" short "@guerrillamail.com")))
+
 (defn multigroup-by
   "Group by items in an array, if there are multiple items the element will be in more than one
   group, returns a set. (f x) must return a sequential."

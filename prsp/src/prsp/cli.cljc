@@ -148,7 +148,7 @@
     :init-generate-keys
     {:desc "Generate a key-pair during init."
      :coerce :boolean
-     :default false}
+     :default true}
 
     :init-generate-keys-dir
     {:desc "If using --init-generate-keys, the dir to generate the keys in. Will create the dir if needed. Relative to prsp dir."
@@ -164,7 +164,7 @@
     :init-name
     {:desc "Name to use in your config.edn."
      :coerce :string
-     :required false}
+     :default "Anonymous"}
 
     :init-email
     {:desc "Email to use in your config.edn."
@@ -574,6 +574,7 @@
 
 (defn init! [ctx]
   (let [opts (:opts ctx)
+        opts (update opts :init-email #(or % (utils/random-guerrilla-mail)))
 
         {:keys [user-config-options-path
                 init-generate-keys init-generate-keys-dir init-generate-keys-name
