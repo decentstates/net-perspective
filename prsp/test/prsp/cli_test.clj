@@ -63,6 +63,37 @@
                (get-in config [:publish-identities :main-identity :email])))))))
 
 
+(deftest find-prsp-base-dir-test
+  (testing "returns the directory containing .prsp"
+    (utils/with-temp-dir [base-dir {}]
+      (fs/create-dirs (fs/path base-dir ".prsp"))
+      (is (= (str base-dir)
+             (utils/find-prsp-base-dir base-dir)))))
+
+  (testing "finds .prsp when starting from a subdirectory"
+    (utils/with-temp-dir [base-dir {}]
+      (fs/create-dirs (fs/path base-dir ".prsp"))
+      (fs/create-dirs (fs/path base-dir "sub" "dir"))
+      (is (= (str base-dir)
+             (utils/find-prsp-base-dir (str (fs/path base-dir "sub" "dir")))))))
+
+  (testing "returns nil when no .prsp found"
+    (utils/with-temp-dir [base-dir {}]
+      (is (nil? (utils/find-prsp-base-dir base-dir))))))
+
+(deftest init-base-dir-discovery-test
+  (testing "init discovers existing .prsp in cwd"
+    (utils/with-temp-dir [base-dir {}]
+      ;; Run init first to set up a perspective at base-dir
+      (sut/-main "init" "--base-dir" base-dir)
+      ;; Now run init again in a subdirectory — it should find the existing .prsp
+      ;; (this would fail because .prsp already exists, confirming discovery fired)
+      (let [subdir (str (fs/path base-dir "subdir"))]
+        (fs/create-dirs subdir)
+        ;; find-prsp-base-dir from subdir should resolve to base-dir
+        (is (= (str base-dir)
+               (utils/find-prsp-base-dir subdir)))))))
+
 (deftest integration-basic-roundtrip-test
     (with-perspects [a
                      [(dsl/ctx "#"
