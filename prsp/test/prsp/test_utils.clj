@@ -22,36 +22,22 @@
 
 (defn make-binary-main
   "Returns a function that calls the prsp binary at `binary-path` with the given args.
+   Passes --output-edn so all build output is machine-readable EDN.
    Forwards stdout/stderr to the current *out*/*err* and returns a value matching
    what cli/-main would return:
-   - build edn  → parsed EDN map (stdout is a pprinted map)
-   - build flat-* → set of strings (stdout is newline-separated plain text)
+   - build commands → parsed EDN (map, set, etc.)
    - init/publish/fetch → nil
    - any failure → :error-exit"
   [binary-path]
   (fn [& args]
-    (let [{:keys [exit out err]} (apply shell/sh binary-path (map str args))]
+    (let [{:keys [exit out err]} (apply shell/sh binary-path "--output-edn" (map str args))]
       (.write *out* out)
       (.write *err* err)
       (if (not= 0 exit)
         :error-exit
-        (let [trimmed    (str/trim out)
-              build-cmd? (boolean (some #{"build"} args))]
-          (cond
-            ;; EDN collection output (build edn → pprinted map starting with "{")
-            (str/starts-with? trimmed "{")
-            (edamame/parse-string trimmed)
-
-            ;; Flat build: newline-separated plain-text items → reconstruct as set
-            (and build-cmd? (seq trimmed))
-            (into #{} (remove empty?) (str/split-lines trimmed))
-
-            ;; Flat build with no results (e.g. no matching emails) → empty set
-            (and build-cmd? (empty? trimmed))
-            #{}
-
-            ;; Non-build commands (init, fetch, publish) → return nil
-            :else nil))))))
+        (let [trimmed (str/trim out)]
+          (when (seq trimmed)
+            (edamame/parse-string trimmed)))))))
 
 (def ^:dynamic *preserve-test-data* false)
 (def ^:dynamic *main*

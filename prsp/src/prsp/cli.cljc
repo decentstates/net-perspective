@@ -109,6 +109,11 @@
     {:alias :h
      :desc "Display this help."
      :default false
+     :coerce :boolean}
+
+    :output-edn
+    {:desc "Serialize command output as EDN (useful for scripting and machine consumption)."
+     :default false
      :coerce :boolean})})
 
 (def non-common-cli-spec
@@ -693,9 +698,9 @@
      ::desc "Build a target perspective."
      ::usage "build TARGET [BUILD-CONTEXT] [OPTIONS...]"
      :fn (wrap-middlewares (fn [{:keys [opts resolved-config]}]
-                             (let [{:keys [build-target build-context build-idents]} opts
+                             (let [{:keys [build-target build-context build-idents output-edn]} opts
                                    output (user-commands/build! build-target build-context build-idents resolved-config)
-                                   serialize-fn (:serialize-fn (meta output))]
+                                   serialize-fn (if output-edn pr-str (:serialize-fn (meta output)))]
                                (print (serialize-fn output))
                                output))
                            [common-middlewares
