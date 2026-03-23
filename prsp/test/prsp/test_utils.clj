@@ -1,6 +1,7 @@
 (ns prsp.test-utils
   (:require
    [clojure.string :as str]
+   [clojure.java.shell :as shell]
    [clojure.pprint :refer [pprint]]
    [clojure.test :refer [deftest is testing]]
    [clojure.walk :as walk]
@@ -19,8 +20,44 @@
 
 (tel/set-min-level! :warn)
 
+(defn make-binary-main
+  "Returns a function that calls the prsp binary at `binary-path` with the given args.
+   Forwards stdout/stderr to the current *out*/*err* and returns a value matching
+   what cli/-main would return:
+   - build edn  → parsed EDN map (stdout is a pprinted map)
+   - build flat-* → set of strings (stdout is newline-separated plain text)
+   - init/publish/fetch → nil
+   - any failure → :error-exit"
+  [binary-path]
+  (fn [& args]
+    (let [{:keys [exit out err]} (apply shell/sh binary-path (map str args))]
+      (.write *out* out)
+      (.write *err* err)
+      (if (not= 0 exit)
+        :error-exit
+        (let [trimmed    (str/trim out)
+              build-cmd? (boolean (some #{"build"} args))]
+          (cond
+            ;; EDN collection output (build edn → pprinted map starting with "{")
+            (str/starts-with? trimmed "{")
+            (edamame/parse-string trimmed)
+
+            ;; Flat build: newline-separated plain-text items → reconstruct as set
+            (and build-cmd? (seq trimmed))
+            (into #{} (remove empty?) (str/split-lines trimmed))
+
+            ;; Flat build with no results (e.g. no matching emails) → empty set
+            (and build-cmd? (empty? trimmed))
+            #{}
+
+            ;; Non-build commands (init, fetch, publish) → return nil
+            :else nil))))))
+
 (def ^:dynamic *preserve-test-data* false)
-(def ^:dynamic *main* #'cli/-main)
+(def ^:dynamic *main*
+  (if-let [binary (System/getenv "PRSP_BINARY")]
+    (make-binary-main binary)
+    #'cli/-main))
 
 (defn ns-schemas-check []
   ;; NOTE: Can change the reporting this produces to match clojure.test

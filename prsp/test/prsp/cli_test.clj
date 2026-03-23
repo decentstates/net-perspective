@@ -13,7 +13,7 @@
 
    [prsp.dsl :as dsl]
    [prsp.schemas :as ps]
-   [prsp.test-utils :refer [with-perspects *preserve-test-data*]]
+   [prsp.test-utils :refer [with-perspects *preserve-test-data* *main*]]
    [prsp.lib.utils :as utils]
    [prsp.cli :as sut]))
 
@@ -23,7 +23,7 @@
 (deftest init-test
   (testing "basics"
     (utils/with-temp-dir [base-dir {}]
-      (sut/-main "init" "--base-dir" base-dir)
+      (*main* "init" "--base-dir" base-dir)
       (is (= (sort (vec (map str (file-seq (fs/file base-dir)))))
              (sort [(str base-dir "")
                     (str base-dir "/relations.edn")
