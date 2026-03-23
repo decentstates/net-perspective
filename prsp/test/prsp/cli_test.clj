@@ -37,6 +37,24 @@
                     (str base-dir "/.prsp/fetches.HEAD/fetch-info.edn")]))))))
 
 
+(deftest find-prsp-base-dir-test
+  (testing "returns the directory containing .prsp"
+    (utils/with-temp-dir [base-dir {}]
+      (fs/create-dirs (fs/path base-dir ".prsp"))
+      (is (= (str base-dir)
+             (utils/find-prsp-base-dir base-dir)))))
+
+  (testing "finds .prsp when starting from a subdirectory"
+    (utils/with-temp-dir [base-dir {}]
+      (fs/create-dirs (fs/path base-dir ".prsp"))
+      (fs/create-dirs (fs/path base-dir "sub" "dir"))
+      (is (= (str base-dir)
+             (utils/find-prsp-base-dir (str (fs/path base-dir "sub" "dir")))))))
+
+  (testing "returns nil when no .prsp found"
+    (utils/with-temp-dir [base-dir {}]
+      (is (nil? (utils/find-prsp-base-dir base-dir))))))
+
 (deftest integration-basic-roundtrip-test
     (with-perspects [a
                      [(dsl/ctx "#"
