@@ -133,15 +133,27 @@
     (clojure.pprint/pprint a)
     (clojure.pprint/pprint b)))
 
+(defn find-ancestor-dir
+  "Walk up from `start` (inclusive), returning the first directory for which
+   `(pred dir)` is truthy, or nil if none found."
+  [pred start]
+  (loop [dir (fs/canonicalize start)]
+    (cond
+      (nil? dir) nil
+      (pred dir) (str dir)
+      :else      (recur (fs/parent dir)))))
+
 (defn find-prsp-base-dir
   "Walk up from `start` looking for a directory that contains a .prsp subdirectory.
    Returns the containing directory as a string, or nil if none found."
   [start]
-  (loop [dir (fs/canonicalize start)]
-    (cond
-      (nil? dir)                            nil
-      (fs/exists? (fs/path dir ".prsp"))    (str dir)
-      :else                                 (recur (fs/parent dir)))))
+  (find-ancestor-dir #(fs/exists? (fs/path % ".prsp")) start))
+
+(defn xdg-config-home
+  "Returns the XDG config home directory, honouring $XDG_CONFIG_HOME if set."
+  []
+  (or (System/getenv "XDG_CONFIG_HOME")
+      (str (fs/path (fs/home) ".config"))))
 
 (defn multigroup-by
   "Group by items in an array, if there are multiple items the element will be in more than one
