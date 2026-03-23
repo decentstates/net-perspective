@@ -134,7 +134,7 @@
     (clojure.pprint/pprint b)))
 
 (defn random-guerrilla-mail []
-  (let [uid (str (java.util.UUID/randomUUID))
+  (let [uid (str (random-uuid))
         short (subs (clojure.string/replace uid "-" "") 0 8)]
     (str "prsp-" short "@guerrillamail.com")))
 
