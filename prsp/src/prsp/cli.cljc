@@ -33,12 +33,12 @@
   {:spec
    (sorted-map
     :base-dir
-    {:desc "Relative to the cwd. Defaults to :discover (finds nearest ancestor with .prsp, or ~/.config/prsp)."
-     :default :discover
+    {:desc "Defaults to $XDG_CONFIG_HOME/prsp (~/.config/prsp). Pass --base-dir . to use the current directory."
+     :default (str (fs/path (utils/xdg-config-home) "prsp"))
      ::relative-to :cwd}
 
     :prsp-dir
-    {:default "./.prsp"
+    {:default "./.data"
      :coerce :string
      :desc "Relative to the base dir."
      ::relative-to :base-dir}
@@ -540,17 +540,6 @@
                       {:user-config user-config
                        :resolved-config resolved-config})))))
 
-(defn middleware-discover-base-dir [handler]
-  (fn [ctx]
-    (let [opts     (:opts ctx)
-          base-dir (:base-dir opts)]
-      (if (= base-dir :discover)
-        (let [cwd      (str (fs/canonicalize "."))
-              resolved (or (utils/find-prsp-base-dir cwd)
-                           (str (fs/path (utils/xdg-config-home) "prsp")))]
-          (handler (assoc-in ctx [:opts :base-dir] resolved)))
-        (handler ctx)))))
-
 (defn middleware-with-cwd [handler]
   (fn [ctx]
     (let [opts (:opts ctx)
@@ -571,7 +560,6 @@
    middleware-help
    middleware-print-build-info
    middleware-version
-   middleware-discover-base-dir
    middleware-normalize-paths
    middleware-with-cwd
    middleware-print-cli-options))

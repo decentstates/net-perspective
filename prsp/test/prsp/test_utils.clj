@@ -79,7 +79,7 @@
            (into {}
                  (map (fn [username]
                         [username
-                         (-> (str holding-dir "/" username "/.prsp/keys/id_prsp.pub")
+                         (-> (str holding-dir "/" username "/.data/keys/id_prsp.pub")
                              slurp
                              ps/ssh-public-key->identifier-ssh)]))
                  username-strs)

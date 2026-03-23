@@ -29,16 +29,16 @@
              (sort [(str base-dir "")
                     (str base-dir "/relations.edn")
                     (str base-dir "/config.edn")
-                    (str base-dir "/.prsp")
-                    (str base-dir "/.prsp/keys")
-                    (str base-dir "/.prsp/keys/id_prsp")
-                    (str base-dir "/.prsp/keys/id_prsp.pub")
-                    (str base-dir "/.prsp/fetches")
-                    (str base-dir "/.prsp/fetches/0")
-                    (str base-dir "/.prsp/fetches/0/fetch-info.edn")
-                    (str base-dir "/.prsp/.gitignore")
-                    (str base-dir "/.prsp/fetches.HEAD")
-                    (str base-dir "/.prsp/fetches.HEAD/fetch-info.edn")])))
+                    (str base-dir "/.data")
+                    (str base-dir "/.data/keys")
+                    (str base-dir "/.data/keys/id_prsp")
+                    (str base-dir "/.data/keys/id_prsp.pub")
+                    (str base-dir "/.data/fetches")
+                    (str base-dir "/.data/fetches/0")
+                    (str base-dir "/.data/fetches/0/fetch-info.edn")
+                    (str base-dir "/.data/.gitignore")
+                    (str base-dir "/.data/fetches.HEAD")
+                    (str base-dir "/.data/fetches.HEAD/fetch-info.edn")])))
       (let [config (-> (str base-dir "/config.edn")
                        slurp
                        edamame/parse-string)]
@@ -62,24 +62,6 @@
         (is (= "alice@example.com"
                (get-in config [:publish-identities :main-identity :email])))))))
 
-
-(deftest find-prsp-base-dir-test
-  (testing "returns the directory containing .prsp"
-    (utils/with-temp-dir [base-dir {}]
-      (fs/create-dirs (fs/path base-dir ".prsp"))
-      (is (= (str base-dir)
-             (utils/find-prsp-base-dir base-dir)))))
-
-  (testing "finds .prsp when starting from a subdirectory"
-    (utils/with-temp-dir [base-dir {}]
-      (fs/create-dirs (fs/path base-dir ".prsp"))
-      (fs/create-dirs (fs/path base-dir "sub" "dir"))
-      (is (= (str base-dir)
-             (utils/find-prsp-base-dir (str (fs/path base-dir "sub" "dir")))))))
-
-  (testing "returns nil when no .prsp found"
-    (utils/with-temp-dir [base-dir {}]
-      (is (nil? (utils/find-prsp-base-dir base-dir))))))
 
 (deftest integration-basic-roundtrip-test
     (with-perspects [a
