@@ -33,8 +33,8 @@
   {:spec
    (sorted-map
     :base-dir
-    {:desc "Relative to the cwd."
-     :default "./"
+    {:desc "Relative to the cwd. Defaults to :discover (finds nearest ancestor with .prsp, or ~/.config/prsp)."
+     :default :discover
      :coerce :string
      ::relative-to :cwd}
 
@@ -545,11 +545,10 @@
   (fn [ctx]
     (let [opts     (:opts ctx)
           base-dir (:base-dir opts)]
-      ;; Only apply discovery when base-dir is the spec default ("./" — not yet resolved).
-      (if (= base-dir "./")
+      (if (= base-dir :discover)
         (let [cwd      (str (fs/canonicalize "."))
               resolved (or (utils/find-prsp-base-dir cwd)
-                           (str (fs/path (fs/home) ".config" "prsp")))]
+                           (str (fs/path (utils/xdg-config-home) "prsp")))]
           (handler (assoc-in ctx [:opts :base-dir] resolved)))
         (handler ctx)))))
 
