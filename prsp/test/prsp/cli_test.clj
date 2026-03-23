@@ -200,6 +200,13 @@
         (is (= ""
                (:out out-map))))))
 
+(deftest build-on-uninitialised-dir-test
+  (testing "build on a directory with no relations.edn exits non-zero"
+    (utils/with-temp-dir [base-dir {}]
+      (let [out-map (prsp.test-utils/with-out-data-map
+                      (*main* "--base-dir" base-dir "build" "edn" "#**"))]
+        (is (= :error-exit (:res out-map)))))))
+
 (comment
   (binding [*preserve-test-data* true]
     (integration-multi-step-test)))
