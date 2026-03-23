@@ -35,7 +35,6 @@
     :base-dir
     {:desc "Relative to the cwd. Defaults to :discover (finds nearest ancestor with .prsp, or ~/.config/prsp)."
      :default :discover
-     :coerce :string
      ::relative-to :cwd}
 
     :prsp-dir
