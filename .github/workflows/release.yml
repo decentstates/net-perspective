@@ -7,47 +7,34 @@ on:
 
 jobs:
   build:
-    name: Build ${{ matrix.os }}-${{ matrix.arch }}
+    name: Build ${{ matrix.system }}
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - runner: ubuntu-latest
-            os: linux
-            arch: x86_64
+            system: x86_64-linux
           - runner: ubuntu-24.04-arm
-            os: linux
-            arch: arm64
+            system: aarch64-linux
           - runner: macos-13
-            os: macos
-            arch: x86_64
+            system: x86_64-darwin
           - runner: macos-latest
-            os: macos
-            arch: arm64
+            system: aarch64-darwin
 
     steps:
       - uses: actions/checkout@v4
 
-      - uses: graalvm/setup-graalvm@v1
-        with:
-          java-version: '21'
-          distribution: 'graalvm'
-          native-image-job-reports: 'true'
+      - uses: DeterminateSystems/nix-installer-action@v14
 
-      - uses: DeLaGuardo/setup-clojure@13
-        with:
-          cli: latest
+      - uses: DeterminateSystems/magic-nix-cache-action@v8
 
-      - name: Build native image
-        working-directory: prsp
-        run: clojure -T:build ci
+      - run: nix build .#prsp
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
-          name: prsp-${{ matrix.os }}-${{ matrix.arch }}
-          path: prsp/target/org.net-perspective/prsp
+          name: prsp-${{ matrix.system }}
+          path: result/bin/prsp
 
   release:
     needs: build
