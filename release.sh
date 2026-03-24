@@ -2,8 +2,9 @@
 set -euo pipefail
 
 VERSION=${1:?"Usage: $0 <version>"}
+PREV_VERSION=$(cat prsp/VERSION)
 
-echo "Will release prsp $VERSION"
+echo "Will release prsp $PREV_VERSION -> $VERSION"
 echo "This will:"
 echo "  - Write $VERSION to prsp/VERSION"
 echo "  - Commit and tag prsp-v$VERSION"
