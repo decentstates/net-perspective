@@ -290,8 +290,7 @@
 (defn middleware-output-return-edn [handler]
   (fn [ctx]
     (let [output-return-edn-alt-out-path (get-in ctx [:opts :output-return-edn])]
-      (if (and output-return-edn-alt-out-path 
-               (fs/exists? output-return-edn-alt-out-path))
+      (if output-return-edn-alt-out-path
         (with-open [out-writer (io/writer output-return-edn-alt-out-path)]
           (let [ret (binding [*out* out-writer]
                       (handler ctx))]

@@ -33,7 +33,7 @@
         (.write *err* err)
         (if (not= 0 exit)
           :error-exit
-          (edamame/parse-string out))))))
+          (edamame/parse-string out {:readers {'object (fn [_] nil)}}))))))
 
 (def ^:dynamic *main*
   (if-let [binary (System/getenv "PRSP_BINARY")]
