@@ -16,30 +16,25 @@
 
    [prsp.dsl :as dsl]
    [prsp.schemas :as ps]
-   [prsp.cli :as cli]))
+   [prsp.cli :as cli]
+   [prsp.lib.utils :as utils]))
 
 (tel/set-min-level! :warn)
 
+(def ^:dynamic *preserve-test-data* false)
+
 (defn make-binary-main
-  "Returns a function that calls the prsp binary at `binary-path` with the given args.
-   Passes --output-edn so all build output is machine-readable EDN.
-   Forwards stdout/stderr to the current *out*/*err* and returns a value matching
-   what cli/-main would return:
-   - build commands → parsed EDN (map, set, etc.)
-   - init/publish/fetch → nil
-   - any failure → :error-exit"
   [binary-path]
   (fn [& args]
-    (let [{:keys [exit out err]} (apply shell/sh binary-path "--output-edn" (map str args))]
-      (.write *out* out)
-      (.write *err* err)
-      (if (not= 0 exit)
-        :error-exit
-        (let [trimmed (str/trim out)]
-          (when (seq trimmed)
-            (edamame/parse-string trimmed)))))))
+    (utils/with-temp-dir [tmp-dir {}]
+      (let [real-out (str (fs/path tmp-dir "out"))
+            {:keys [exit out err]} (apply shell/sh binary-path "--output-return-edn" real-out (map str args))]
+        (print (slurp real-out))
+        (.write *err* err)
+        (if (not= 0 exit)
+          :error-exit
+          (edamame/parse-string out))))))
 
-(def ^:dynamic *preserve-test-data* false)
 (def ^:dynamic *main*
   (if-let [binary (System/getenv "PRSP_BINARY")]
     (make-binary-main binary)

@@ -119,7 +119,7 @@
           buildPhase = ''
             source ${prsp-clojure-nix-locker.shellEnv}
             export PRSP_BINARY=${packages.prsp}/bin/prsp
-            ${clojure}/bin/clojure -M:test --focus prsp.cli-test --skip prsp.cli-test/ns-schemas-test
+            ${clojure}/bin/clojure -M:test --focus prsp.cli-test
           '';
           installPhase = "touch $out";
         };

@@ -27,6 +27,8 @@
    [prsp.resolution :as resolution]
    [prsp.schemas :as ps]
    [prsp.user-commands :as user-commands])
+  (:import
+    [java.io PrintWriter])
   (:gen-class))
 
 (def common-cli-spec
@@ -111,10 +113,9 @@
      :default false
      :coerce :boolean}
 
-    :output-edn
-    {:desc "Serialize command output as EDN (useful for scripting and machine consumption)."
-     :default false
-     :coerce :boolean})})
+    :output-return-edn
+    {:desc "(For binary testing) Serialize command return and return out, redirecting the real out to the file path provided."
+     :default false})})
 
 (def non-common-cli-spec
   {:spec
@@ -285,6 +286,17 @@
     (let [res (handler ctx)]
       (tel/event! ::middleware-eventer:finish)
       res)))
+
+(defn middleware-output-return-edn [handler]
+  (fn [ctx]
+    (let [output-return-edn-alt-out-path (get-in ctx [:opts :output-return-edn])]
+      (if (and output-return-edn-alt-out-path (fs/exists output-return-edn-alt-out-path))
+        (let [ret
+              (binding [*out* (PrintWriter. output-return-edn-alt-out-path)]
+                (handler ctx))]
+          (prn ret))
+        ; else
+        (handler ctx)))))
 
 (defn middleware-logging-level [handler]
   (fn [ctx]
@@ -559,6 +571,7 @@
 
 (def common-middlewares
   (comp
+   middleware-output-return-edn
    middleware-logging-level
    middleware-now-instant
    middleware-eventer
@@ -698,9 +711,9 @@
      ::desc "Build a target perspective."
      ::usage "build TARGET [BUILD-CONTEXT] [OPTIONS...]"
      :fn (wrap-middlewares (fn [{:keys [opts resolved-config]}]
-                             (let [{:keys [build-target build-context build-idents output-edn]} opts
+                             (let [{:keys [build-target build-context build-idents]} opts
                                    output (user-commands/build! build-target build-context build-idents resolved-config)
-                                   serialize-fn (if output-edn pr-str (:serialize-fn (meta output)))]
+                                   serialize-fn (:serialize-fn (meta output))]
                                (print (serialize-fn output))
                                output))
                            [common-middlewares
