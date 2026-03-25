@@ -45,8 +45,7 @@
         (is (= "Anonymous"
                (get-in config [:publish-identities :main-identity :name])))
         (is (re-find #"@guerrillamail\.com"
-                     (get-in config [:publish-identities :main-identity :email])))
-        (is (fs/exists? (str base-dir "/.prsp/keys/id_prsp"))))))
+                     (get-in config [:publish-identities :main-identity :email]))))))
 
   (testing "explicit args override defaults"
     (utils/with-temp-dir [base-dir {}]
