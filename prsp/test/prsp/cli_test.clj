@@ -10,6 +10,7 @@
    [taoensso.truss :refer [have have! have!? have? ex-info!]]
 
    [babashka.fs :as fs]
+   [edamame.core :as edamame]
 
    [prsp.dsl :as dsl]
    [prsp.schemas :as ps]
@@ -21,20 +22,44 @@
 (prsp.test-utils/deftest-ns-schemas-test)
 
 (deftest init-test
-  (testing "basics"
+  (testing "basics — no args (uses defaults)"
     (utils/with-temp-dir [base-dir {}]
       (*main* "init" "--base-dir" base-dir)
       (is (= (sort (vec (map str (file-seq (fs/file base-dir)))))
              (sort [(str base-dir "")
                     (str base-dir "/relations.edn")
                     (str base-dir "/config.edn")
-                    (str base-dir "/.prsp")
-                    (str base-dir "/.prsp/fetches")
-                    (str base-dir "/.prsp/fetches/0")
-                    (str base-dir "/.prsp/fetches/0/fetch-info.edn")
-                    (str base-dir "/.prsp/.gitignore")
-                    (str base-dir "/.prsp/fetches.HEAD")
-                    (str base-dir "/.prsp/fetches.HEAD/fetch-info.edn")]))))))
+                    (str base-dir "/keys")
+                    (str base-dir "/keys/id_prsp")
+                    (str base-dir "/keys/id_prsp.pub")
+                    (str base-dir "/var")
+                    (str base-dir "/var/fetches")
+                    (str base-dir "/var/fetches/0")
+                    (str base-dir "/var/fetches/0/fetch-info.edn")
+                    (str base-dir "/var/.gitignore")
+                    (str base-dir "/var/fetches.HEAD")
+                    (str base-dir "/var/fetches.HEAD/fetch-info.edn")])))
+      (let [config (-> (str base-dir "/config.edn")
+                       slurp
+                       edamame/parse-string)]
+        (is (= "Anonymous"
+               (get-in config [:publish-identities :main-identity :name])))
+        (is (re-find #"@guerrillamail\.com"
+                     (get-in config [:publish-identities :main-identity :email]))))))
+
+  (testing "explicit args override defaults"
+    (utils/with-temp-dir [base-dir {}]
+      (sut/-main "init" "--base-dir" base-dir
+                 "--init-name" "Alice"
+                 "--init-email" "alice@example.com"
+                 "--no-init-generate-keys")
+      (let [config (-> (str base-dir "/config.edn")
+                       slurp
+                       edamame/parse-string)]
+        (is (= "Alice"
+               (get-in config [:publish-identities :main-identity :name])))
+        (is (= "alice@example.com"
+               (get-in config [:publish-identities :main-identity :email])))))))
 
 
 (deftest integration-basic-roundtrip-test
@@ -128,7 +153,7 @@
                 #{[(:ident a) ["net-perspective" "announcements"]]
                   ["feed:https://net-perspective.org/feed.atom" []]}}
                ((:main c) "build" "edn" "#**"))))))
-            ;; TODO: Search the entire srv-dir for the private url 
+            ;; TODO: Search the entire srv-dir for the private url
 
 (deftest integration-multi-step-test
     (with-perspects [a

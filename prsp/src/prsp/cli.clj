@@ -35,13 +35,12 @@
   {:spec
    (sorted-map
     :base-dir
-    {:desc "Relative to the cwd."
-     :default "./"
-     :coerce :string
+    {:desc "Defaults to $XDG_CONFIG_HOME/prsp (~/.config/prsp). Pass --base-dir . to use the current directory."
+     :default (str (fs/path (utils/xdg-config-home) "prsp"))
      ::relative-to :cwd}
 
-    :prsp-dir
-    {:default "./.prsp"
+    :var-dir
+    {:default "./var"
      :coerce :string
      :desc "Relative to the base dir."
      ::relative-to :base-dir}
@@ -68,19 +67,19 @@
     {:default "./fetches"
      :coerce :string
      :desc "Relative to the prsp dir."
-     ::relative-to :prsp-dir}
+     ::relative-to :var-dir}
 
     :fetch-head-symlink-path
     {:default "./fetches.HEAD"
      :coerce :string
      :desc "Relative to the prsp dir."
-     ::relative-to :prsp-dir}
+     ::relative-to :var-dir}
 
     :last-publish-info-path
     {:default "./last-publish-info.edn"
      :coerce :string
      :desc "Relative to the prsp dir."
-     ::relative-to :prsp-dir}
+     ::relative-to :var-dir}
 
     :log-level
     {:desc "trace, debug, info, warn, error, fatal"
@@ -154,13 +153,13 @@
     :init-generate-keys
     {:desc "Generate a key-pair during init."
      :coerce :boolean
-     :default false}
+     :default true}
 
     :init-generate-keys-dir
     {:desc "If using --init-generate-keys, the dir to generate the keys in. Will create the dir if needed. Relative to prsp dir."
      :coerce :string
      :default "./keys"
-     ::relative-to :prsp-dir}
+     ::relative-to :base-dir}
 
     :init-generate-keys-name
     {:desc "If using --init-generate-keys, the name for the key."
@@ -170,7 +169,7 @@
     :init-name
     {:desc "Name to use in your config.edn."
      :coerce :string
-     :required false}
+     :default "Anonymous"}
 
     :init-email
     {:desc "Email to use in your config.edn."
@@ -228,12 +227,12 @@
                     opt-pair)))
            opts)
 
-          ;; resolve relative-to prsp-dir
+          ;; resolve relative-to var-dir
           opts
           (into
            {}
            (map (fn [opt-pair]
-                  (if (relative-to? opt-pair :prsp-dir)
+                  (if (relative-to? opt-pair :var-dir)
                     (resolve-opt-pair opts opt-pair)
                     opt-pair)))
            opts)]
@@ -592,23 +591,24 @@
 
 (defn init! [ctx]
   (let [opts (:opts ctx)
+        opts (update opts :init-email #(or % (utils/random-guerrilla-mail)))
 
         {:keys [user-config-options-path
                 init-generate-keys init-generate-keys-dir init-generate-keys-name
                 init-name init-email]}
         opts]
 
-    (doseq [kw [:prsp-dir :user-config-path]]
+    (doseq [kw [:var-dir :user-config-path]]
       (let [p (get opts kw)]
         (when (fs/exists? p)
           (ex-info! (str "Cannot init: path `" p "` (`" kw "`) already exists.")
                     {::anom/category ::anom/incorrect
                      :opts opts}))))
 
-    (doseq [kw [:base-dir :prsp-dir :fetches-dir]]
+    (doseq [kw [:base-dir :var-dir :fetches-dir]]
       (fs/create-dirs (fs/path (get opts kw))))
 
-    (spit (str (fs/path (:prsp-dir opts) ".gitignore"))
+    (spit (str (fs/path (:var-dir opts) ".gitignore"))
           "*")
 
     (let [config-options-init
