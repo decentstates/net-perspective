@@ -29,24 +29,23 @@
              (sort [(str base-dir "")
                     (str base-dir "/relations.edn")
                     (str base-dir "/config.edn")
-                    (str base-dir "/.prsp")
-                    (str base-dir "/.prsp/keys")
-                    (str base-dir "/.prsp/keys/id_prsp")
-                    (str base-dir "/.prsp/keys/id_prsp.pub")
-                    (str base-dir "/.prsp/fetches")
-                    (str base-dir "/.prsp/fetches/0")
-                    (str base-dir "/.prsp/fetches/0/fetch-info.edn")
-                    (str base-dir "/.prsp/.gitignore")
-                    (str base-dir "/.prsp/fetches.HEAD")
-                    (str base-dir "/.prsp/fetches.HEAD/fetch-info.edn")])))
+                    (str base-dir "/keys")
+                    (str base-dir "/keys/id_prsp")
+                    (str base-dir "/keys/id_prsp.pub")
+                    (str base-dir "/var")
+                    (str base-dir "/var/fetches")
+                    (str base-dir "/var/fetches/0")
+                    (str base-dir "/var/fetches/0/fetch-info.edn")
+                    (str base-dir "/var/.gitignore")
+                    (str base-dir "/var/fetches.HEAD")
+                    (str base-dir "/var/fetches.HEAD/fetch-info.edn")])))
       (let [config (-> (str base-dir "/config.edn")
                        slurp
                        edamame/parse-string)]
         (is (= "Anonymous"
                (get-in config [:publish-identities :main-identity :name])))
         (is (re-find #"@guerrillamail\.com"
-                     (get-in config [:publish-identities :main-identity :email])))
-        (is (fs/exists? (str base-dir "/.prsp/keys/id_prsp"))))))
+                     (get-in config [:publish-identities :main-identity :email]))))))
 
   (testing "explicit args override defaults"
     (utils/with-temp-dir [base-dir {}]

@@ -138,6 +138,12 @@
         short (subs (clojure.string/replace uid "-" "") 0 8)]
     (str "prsp-" short "@guerrillamail.com")))
 
+(defn xdg-config-home
+  "Returns the XDG config home directory, honouring $XDG_CONFIG_HOME if set."
+  []
+  (or (System/getenv "XDG_CONFIG_HOME")
+      (str (fs/path (fs/home) ".config"))))
+
 (defn multigroup-by
   "Group by items in an array, if there are multiple items the element will be in more than one
   group, returns a set. (f x) must return a sequential."
