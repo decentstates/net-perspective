@@ -80,7 +80,7 @@
 
         packages.prsp = pkgs.stdenv.mkDerivation {
           pname = "prsp";
-          version = "0.3.1";
+          version = lib.trim (builtins.readFile ./prsp/VERSION);
 
           src = ./prsp;
 
