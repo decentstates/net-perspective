@@ -106,6 +106,24 @@
           '';
         };
 
+        checks.prsp = pkgs.stdenv.mkDerivation {
+          pname = "prsp-check";
+          version = packages.prsp.version;
+          src = ./prsp;
+          nativeBuildInputs = [
+            packages.prsp
+            clojure
+            jdk
+            pkgs.openssh
+          ];
+          buildPhase = ''
+            source ${prsp-clojure-nix-locker.shellEnv}
+            export PRSP_BINARY=${packages.prsp}/bin/prsp
+            ${clojure}/bin/clojure -M:test --focus prsp.cli-test
+          '';
+          installPhase = "touch $out";
+        };
+
         formatter = pkgs.nixfmt-rfc-style;
         devShells = {
           default = pkgs.mkShellNoCC {

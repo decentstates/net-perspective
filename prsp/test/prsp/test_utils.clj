@@ -1,6 +1,7 @@
 (ns prsp.test-utils
   (:require
    [clojure.string :as str]
+   [clojure.java.shell :as shell]
    [clojure.pprint :refer [pprint]]
    [clojure.test :refer [deftest is testing]]
    [clojure.walk :as walk]
@@ -15,12 +16,29 @@
 
    [prsp.dsl :as dsl]
    [prsp.schemas :as ps]
-   [prsp.cli :as cli]))
+   [prsp.cli :as cli]
+   [prsp.lib.utils :as utils]))
 
 (tel/set-min-level! :warn)
 
 (def ^:dynamic *preserve-test-data* false)
-(def ^:dynamic *main* #'cli/-main)
+
+(defn make-binary-main
+  [binary-path]
+  (fn [& args]
+    (utils/with-temp-dir [tmp-dir {}]
+      (let [real-out (str (fs/path tmp-dir "out"))
+            {:keys [exit out err]} (apply shell/sh binary-path "--output-return-edn" real-out (map str args))]
+        (print (slurp real-out))
+        (.write *err* err)
+        (if (not= 0 exit)
+          :error-exit
+          (edamame/parse-string out {:readers {'object (fn [_] nil)}}))))))
+
+(def ^:dynamic *main*
+  (if-let [binary (System/getenv "PRSP_BINARY")]
+    (make-binary-main binary)
+    #'cli/-main))
 
 (defn ns-schemas-check []
   ;; NOTE: Can change the reporting this produces to match clojure.test

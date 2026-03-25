@@ -27,6 +27,8 @@
    [prsp.resolution :as resolution]
    [prsp.schemas :as ps]
    [prsp.user-commands :as user-commands])
+  (:import
+    [java.io PrintWriter])
   (:gen-class))
 
 (def common-cli-spec
@@ -108,7 +110,11 @@
     {:alias :h
      :desc "Display this help."
      :default false
-     :coerce :boolean})})
+     :coerce :boolean}
+
+    :output-return-edn
+    {:desc "(For binary testing) Serialize command return and return out, redirecting the real out to the file path provided."
+     :default false})})
 
 (def non-common-cli-spec
   {:spec
@@ -279,6 +285,17 @@
     (let [res (handler ctx)]
       (tel/event! ::middleware-eventer:finish)
       res)))
+
+(defn middleware-output-return-edn [handler]
+  (fn [ctx]
+    (let [output-return-edn-alt-out-path (get-in ctx [:opts :output-return-edn])]
+      (if output-return-edn-alt-out-path
+        (with-open [out-writer (io/writer output-return-edn-alt-out-path)]
+          (let [ret (binding [*out* out-writer]
+                      (handler ctx))]
+            (prn ret)))
+        ; else
+        (handler ctx)))))
 
 (defn middleware-logging-level [handler]
   (fn [ctx]
@@ -553,6 +570,7 @@
 
 (def common-middlewares
   (comp
+   middleware-output-return-edn
    middleware-logging-level
    middleware-now-instant
    middleware-eventer

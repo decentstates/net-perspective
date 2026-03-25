@@ -14,7 +14,7 @@
 
    [prsp.dsl :as dsl]
    [prsp.schemas :as ps]
-   [prsp.test-utils :refer [with-perspects *preserve-test-data*]]
+   [prsp.test-utils :refer [with-perspects *preserve-test-data* *main*]]
    [prsp.lib.utils :as utils]
    [prsp.cli :as sut]))
 
@@ -24,7 +24,7 @@
 (deftest init-test
   (testing "basics — no args (uses defaults)"
     (utils/with-temp-dir [base-dir {}]
-      (sut/-main "init" "--base-dir" base-dir)
+      (*main* "init" "--base-dir" base-dir)
       (is (= (sort (vec (map str (file-seq (fs/file base-dir)))))
              (sort [(str base-dir "")
                     (str base-dir "/relations.edn")
@@ -224,6 +224,13 @@
                      (:err out-map)))
         (is (= ""
                (:out out-map))))))
+
+(deftest build-on-uninitialised-dir-test
+  (testing "build on a directory with no relations.edn exits non-zero"
+    (utils/with-temp-dir [base-dir {}]
+      (let [out-map (prsp.test-utils/with-out-data-map
+                      (*main* "--base-dir" base-dir "build" "edn" "#**"))]
+        (is (= :error-exit (:res out-map)))))))
 
 (comment
   (binding [*preserve-test-data* true]
