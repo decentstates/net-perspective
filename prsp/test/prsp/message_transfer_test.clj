@@ -39,11 +39,11 @@
     (fs/with-temp-dir [parent-input-dir {}]
       (fs/with-temp-dir [publish-dir {}]
         (let [envelopes (mg/generate [:vector ps/EDNMessageEnvelope])
-              envelopes' (mapv #(assoc % :publisher {:shell/args ["find" :input-dir "-name" "*.eml"
+              envelopes' (mapv #(assoc % :publisher {:shell/args ["find" :input-dir "-name" "*.json"
                                                                   "-exec" "cp" "{}" (str publish-dir) ";"]})
                                envelopes)
 
               publish-config->input-dir (sut/write-edn-message-envelopes! envelopes' parent-input-dir)
               _publish-info (sut/publish! publish-config->input-dir parent-input-dir)]
-          (is (= (count (fs/glob publish-dir "**.eml"))
+          (is (= (count (fs/glob publish-dir "**.json"))
                  (count envelopes))))))))
