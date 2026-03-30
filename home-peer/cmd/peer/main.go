@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 
@@ -53,8 +54,10 @@ func main() {
 
 	// --- DHT (always server mode) ---
 	ns := record.NamespacedValidator{
-		"dr":  validator.DRValidator{},
-		"drd": validator.DRDValidator{},
+		"dr":       validator.DRPointerValidator{},
+		"dr-data":  validator.DRDataValidator{},
+		"drd":      validator.DRDPointerValidator{},
+		"drd-data": validator.DRDDataValidator{},
 	}
 	ctx := context.Background()
 	d, err := dht.New(ctx, h,
@@ -101,13 +104,13 @@ func main() {
 			log.Println("Warning: --http-addr set but no --users provided; no users will be homed")
 		}
 
-		s, err := store.Open(*dataDir)
+		s, err := store.Open(filepath.Join(*dataDir, "content"))
 		if err != nil {
 			log.Fatalf("Opening store at %s: %v", *dataDir, err)
 		}
 		defer s.Close()
 
-		hp, err := homepeer.New(h, d, s, privKey, userIDs)
+		hp, err := homepeer.New(h, d, s, privKey, userIDs, *dataDir)
 		if err != nil {
 			log.Fatalf("Creating home peer: %v", err)
 		}

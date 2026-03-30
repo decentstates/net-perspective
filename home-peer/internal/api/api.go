@@ -73,7 +73,7 @@ func (s *Server) handleFeed(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleDeps(w http.ResponseWriter, r *http.Request) {
 	userID := r.PathValue("userid")
 
-	drds, err := s.hp.Deps(userID)
+	drd, err := s.hp.Deps(userID)
 	if err != nil {
 		if errors.Is(err, homepeer.ErrNotHomed) {
 			writeError(w, http.StatusNotFound, "user not homed")
@@ -82,7 +82,11 @@ func (s *Server) handleDeps(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, drds)
+	if drd == nil {
+		writeJSON(w, http.StatusOK, nil)
+		return
+	}
+	writeJSON(w, http.StatusOK, drd)
 }
 
 func (s *Server) handleGetDR(w http.ResponseWriter, r *http.Request) {

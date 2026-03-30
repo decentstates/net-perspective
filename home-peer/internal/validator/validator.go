@@ -69,102 +69,34 @@ func ValidateDR(dr *model.DirectRelations) error {
 	return ValidateDRSignature(dr)
 }
 
-// DRValidator validates DirectRelations records for the /dr/ namespace.
-type DRValidator struct{}
-
-func (DRValidator) Validate(key string, value []byte) error {
-	// key is "/dr/<peer-id>"
-	parts := strings.SplitN(key, "/", 3)
-	if len(parts) != 3 || parts[1] != "dr" {
-		return fmt.Errorf("invalid dr key: %s", key)
-	}
-	expectedUserID := parts[2]
-
-	var dr model.DirectRelations
-	if err := json.Unmarshal(value, &dr); err != nil {
-		return fmt.Errorf("unmarshal DirectRelations: %w", err)
-	}
-
-	if dr.UserID != expectedUserID {
-		return fmt.Errorf("user_id %s does not match key %s", dr.UserID, expectedUserID)
-	}
-
-	return ValidateDR(&dr)
-}
-
-func (DRValidator) Select(key string, values [][]byte) (int, error) {
-	best := -1
-	var bestTs int64
-	for i, v := range values {
-		var dr model.DirectRelations
-		if err := json.Unmarshal(v, &dr); err != nil {
-			continue
-		}
-		if best == -1 || dr.Timestamp > bestTs {
-			best = i
-			bestTs = dr.Timestamp
-		}
-	}
-	if best == -1 {
-		return 0, fmt.Errorf("no valid DirectRelations records")
-	}
-	return best, nil
-}
-
-// DRDValidator validates DirectRelationsDependencies records for the /drd/ namespace.
-type DRDValidator struct{}
-
-func (DRDValidator) Validate(key string, value []byte) error {
-	// key is "/drd/<peer-id>/<dot-joined-context>"
-	parts := strings.SplitN(key, "/", 4)
-	if len(parts) != 4 || parts[1] != "drd" {
-		return fmt.Errorf("invalid drd key: %s", key)
-	}
-	expectedUserID := parts[2]
-	expectedCtx := parts[3]
-
-	var drd model.DirectRelationsDependencies
-	if err := json.Unmarshal(value, &drd); err != nil {
-		return fmt.Errorf("unmarshal DirectRelationsDependencies: %w", err)
-	}
-
-	if drd.UserID != expectedUserID {
-		return fmt.Errorf("user_id %s does not match key %s", drd.UserID, expectedUserID)
-	}
-	if model.ContextDotJoin(drd.Context) != expectedCtx {
-		return fmt.Errorf("context %v does not match key segment %s", drd.Context, expectedCtx)
-	}
-
+// ValidateDRDSignature verifies the cryptographic signature on a DirectRelationsDependencies document.
+func ValidateDRDSignature(drd *model.DirectRelationsDependencies) error {
 	pid, err := peer.Decode(drd.PeerID)
 	if err != nil {
 		return fmt.Errorf("invalid peer_id: %w", err)
 	}
-
 	pubKey, err := pid.ExtractPublicKey()
 	if err != nil {
 		return fmt.Errorf("extracting public key from peer_id: %w", err)
 	}
-
 	sigBytes, err := base64.StdEncoding.DecodeString(drd.Signature)
 	if err != nil {
 		return fmt.Errorf("decoding signature: %w", err)
 	}
-
 	payload := map[string]any{
-		"version":          drd.Version,
-		"user_id":          drd.UserID,
-		"context":          drd.Context,
-		"hops":             drd.Hops,
-		"sources":          drd.Sources,
-		"source_timestamp": drd.SourceTimestamp,
-		"computed_at":      drd.ComputedAt,
-		"peer_id":          drd.PeerID,
+		"version":            drd.Version,
+		"user_id":            drd.UserID,
+		"dr_content_address": drd.DRContentAddress,
+		"hops":               drd.Hops,
+		"sources":            drd.Sources,
+		"source_timestamp":   drd.SourceTimestamp,
+		"computed_at":        drd.ComputedAt,
+		"peer_id":            drd.PeerID,
 	}
 	canonical, err := canonicaljson.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("canonical JSON for DRD: %w", err)
 	}
-
 	ok, err := pubKey.Verify(canonical, sigBytes)
 	if err != nil {
 		return fmt.Errorf("signature verification error: %w", err)
@@ -172,36 +104,153 @@ func (DRDValidator) Validate(key string, value []byte) error {
 	if !ok {
 		return fmt.Errorf("signature verification failed")
 	}
-
 	return nil
 }
 
-func (DRDValidator) Select(key string, values [][]byte) (int, error) {
+// DRPointerValidator validates records at /dr/<user-id>: a DRPointer mapping a user to
+// their current DirectRelations content address.
+type DRPointerValidator struct{}
+
+func (DRPointerValidator) Validate(key string, value []byte) error {
+	parts := strings.SplitN(key, "/", 3)
+	if len(parts) != 3 || parts[1] != "dr" {
+		return fmt.Errorf("invalid dr key: %s", key)
+	}
+	expectedUserID := parts[2]
+
+	var ptr model.DRPointer
+	if err := json.Unmarshal(value, &ptr); err != nil {
+		return fmt.Errorf("unmarshal DRPointer: %w", err)
+	}
+	if ptr.UserID != expectedUserID {
+		return fmt.Errorf("user_id %s does not match key %s", ptr.UserID, expectedUserID)
+	}
+	if ptr.ContentAddress == "" {
+		return fmt.Errorf("content_address is empty")
+	}
+	return nil
+}
+
+func (DRPointerValidator) Select(_ string, values [][]byte) (int, error) {
 	best := -1
 	var bestTs int64
 	for i, v := range values {
-		var drd model.DirectRelationsDependencies
-		if err := json.Unmarshal(v, &drd); err != nil {
+		var ptr model.DRPointer
+		if err := json.Unmarshal(v, &ptr); err != nil {
 			continue
 		}
-		if best == -1 || drd.ComputedAt > bestTs {
+		if best == -1 || ptr.Timestamp > bestTs {
 			best = i
-			bestTs = drd.ComputedAt
+			bestTs = ptr.Timestamp
 		}
 	}
 	if best == -1 {
-		return 0, fmt.Errorf("no valid DirectRelationsDependencies records")
+		return 0, fmt.Errorf("no valid DRPointer records")
 	}
 	return best, nil
 }
 
-// PermissiveValidator always validates and selects index 0.
-type PermissiveValidator struct{}
+// DRDataValidator validates records at /dr-data/<hash>: raw DirectRelations bytes.
+// Checks that SHA-256 of the value matches the key hash and that the DR signature is valid.
+type DRDataValidator struct{}
 
-func (PermissiveValidator) Validate(key string, value []byte) error {
+func (DRDataValidator) Validate(key string, value []byte) error {
+	parts := strings.SplitN(key, "/", 3)
+	if len(parts) != 3 || parts[1] != "dr-data" {
+		return fmt.Errorf("invalid dr-data key: %s", key)
+	}
+	expectedAddr := parts[2]
+	if model.ContentAddr(value) != expectedAddr {
+		return fmt.Errorf("content address mismatch: data does not hash to %s", expectedAddr)
+	}
+	var dr model.DirectRelations
+	if err := json.Unmarshal(value, &dr); err != nil {
+		return fmt.Errorf("unmarshal DirectRelations: %w", err)
+	}
+	return ValidateDR(&dr)
+}
+
+func (DRDataValidator) Select(_ string, values [][]byte) (int, error) {
+	// Content-addressed: all valid values are identical; return any valid one.
+	for i, v := range values {
+		var dr model.DirectRelations
+		if json.Unmarshal(v, &dr) == nil {
+			return i, nil
+		}
+	}
+	return 0, fmt.Errorf("no valid DR data records")
+}
+
+// DRDPointerValidator validates records at /drd/<dr-content-address>: a DRDPointer mapping
+// a DR content address to its computed DRD content address.
+type DRDPointerValidator struct{}
+
+func (DRDPointerValidator) Validate(key string, value []byte) error {
+	parts := strings.SplitN(key, "/", 3)
+	if len(parts) != 3 || parts[1] != "drd" {
+		return fmt.Errorf("invalid drd key: %s", key)
+	}
+	expectedDRAddr := parts[2]
+
+	var ptr model.DRDPointer
+	if err := json.Unmarshal(value, &ptr); err != nil {
+		return fmt.Errorf("unmarshal DRDPointer: %w", err)
+	}
+	if ptr.DRContentAddress != expectedDRAddr {
+		return fmt.Errorf("dr_content_address %s does not match key %s", ptr.DRContentAddress, expectedDRAddr)
+	}
+	if ptr.DRDContentAddress == "" {
+		return fmt.Errorf("drd_content_address is empty")
+	}
 	return nil
 }
 
-func (PermissiveValidator) Select(key string, values [][]byte) (int, error) {
-	return 0, nil
+func (DRDPointerValidator) Select(_ string, values [][]byte) (int, error) {
+	best := -1
+	var bestTs int64
+	for i, v := range values {
+		var ptr model.DRDPointer
+		if err := json.Unmarshal(v, &ptr); err != nil {
+			continue
+		}
+		if best == -1 || ptr.Timestamp > bestTs {
+			best = i
+			bestTs = ptr.Timestamp
+		}
+	}
+	if best == -1 {
+		return 0, fmt.Errorf("no valid DRDPointer records")
+	}
+	return best, nil
+}
+
+// DRDDataValidator validates records at /drd-data/<hash>: raw DirectRelationsDependencies bytes.
+// Checks that SHA-256 of the value matches the key hash and that the DRD signature is valid.
+type DRDDataValidator struct{}
+
+func (DRDDataValidator) Validate(key string, value []byte) error {
+	parts := strings.SplitN(key, "/", 3)
+	if len(parts) != 3 || parts[1] != "drd-data" {
+		return fmt.Errorf("invalid drd-data key: %s", key)
+	}
+	expectedAddr := parts[2]
+	if model.ContentAddr(value) != expectedAddr {
+		return fmt.Errorf("content address mismatch: data does not hash to %s", expectedAddr)
+	}
+	var drd model.DirectRelationsDependencies
+	if err := json.Unmarshal(value, &drd); err != nil {
+		return fmt.Errorf("unmarshal DirectRelationsDependencies: %w", err)
+	}
+	return ValidateDRDSignature(&drd)
+}
+
+func (DRDDataValidator) Select(_ string, values [][]byte) (int, error) {
+	// Content-addressed: all valid values are identical; return any valid one.
+	for i, v := range values {
+		var drd model.DirectRelationsDependencies
+		if json.Unmarshal(v, &drd) == nil {
+			return i, nil
+		}
+	}
+	return 0, fmt.Errorf("no valid DRD data records")
 }
