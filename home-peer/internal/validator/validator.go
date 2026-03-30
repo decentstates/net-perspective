@@ -114,6 +114,10 @@ func ValidateDRDSignature(drd *model.DirectRelationsDependencies) error {
 type DRPointerValidator struct{}
 
 func (DRPointerValidator) Validate(key string, value []byte) error {
+	return validateDRPointer(key, value, time.Now().Unix())
+}
+
+func validateDRPointer(key string, value []byte, fetchTime int64) error {
 	parts := strings.SplitN(key, "/", 3)
 	if len(parts) != 3 || parts[1] != "dr" {
 		return fmt.Errorf("invalid dr key: %s", key)
@@ -130,14 +134,17 @@ func (DRPointerValidator) Validate(key string, value []byte) error {
 	if ptr.ContentAddress == "" {
 		return fmt.Errorf("content_address is empty")
 	}
-	if ptr.Timestamp > time.Now().Unix() {
+	if ptr.Timestamp > fetchTime {
 		return fmt.Errorf("timestamp is in the future")
 	}
 	return nil
 }
 
 func (DRPointerValidator) Select(_ string, values [][]byte) (int, error) {
-	now := time.Now().Unix()
+	return selectDRPointer(values, time.Now().Unix())
+}
+
+func selectDRPointer(values [][]byte, fetchTime int64) (int, error) {
 	best := -1
 	var bestTs int64
 	for i, v := range values {
@@ -145,7 +152,7 @@ func (DRPointerValidator) Select(_ string, values [][]byte) (int, error) {
 		if err := json.Unmarshal(v, &ptr); err != nil {
 			continue
 		}
-		if ptr.Timestamp > now {
+		if ptr.Timestamp > fetchTime {
 			continue
 		}
 		if best == -1 || ptr.Timestamp > bestTs {
@@ -164,6 +171,10 @@ func (DRPointerValidator) Select(_ string, values [][]byte) (int, error) {
 type DRDataValidator struct{}
 
 func (DRDataValidator) Validate(key string, value []byte) error {
+	return validateDRData(key, value, time.Now().Unix())
+}
+
+func validateDRData(key string, value []byte, fetchTime int64) error {
 	parts := strings.SplitN(key, "/", 3)
 	if len(parts) != 3 || parts[1] != "dr-data" {
 		return fmt.Errorf("invalid dr-data key: %s", key)
@@ -176,7 +187,7 @@ func (DRDataValidator) Validate(key string, value []byte) error {
 	if err := json.Unmarshal(value, &dr); err != nil {
 		return fmt.Errorf("unmarshal DirectRelations: %w", err)
 	}
-	if dr.Timestamp > time.Now().Unix() {
+	if dr.Timestamp > fetchTime {
 		return fmt.Errorf("timestamp is in the future")
 	}
 	return ValidateDR(&dr)
@@ -198,6 +209,10 @@ func (DRDataValidator) Select(_ string, values [][]byte) (int, error) {
 type DRDPointerValidator struct{}
 
 func (DRDPointerValidator) Validate(key string, value []byte) error {
+	return validateDRDPointer(key, value, time.Now().Unix())
+}
+
+func validateDRDPointer(key string, value []byte, fetchTime int64) error {
 	parts := strings.SplitN(key, "/", 3)
 	if len(parts) != 3 || parts[1] != "drd" {
 		return fmt.Errorf("invalid drd key: %s", key)
@@ -214,14 +229,17 @@ func (DRDPointerValidator) Validate(key string, value []byte) error {
 	if ptr.DRDContentAddress == "" {
 		return fmt.Errorf("drd_content_address is empty")
 	}
-	if ptr.Timestamp > time.Now().Unix() {
+	if ptr.Timestamp > fetchTime {
 		return fmt.Errorf("timestamp is in the future")
 	}
 	return nil
 }
 
 func (DRDPointerValidator) Select(_ string, values [][]byte) (int, error) {
-	now := time.Now().Unix()
+	return selectDRDPointer(values, time.Now().Unix())
+}
+
+func selectDRDPointer(values [][]byte, fetchTime int64) (int, error) {
 	best := -1
 	var bestTs int64
 	for i, v := range values {
@@ -229,7 +247,7 @@ func (DRDPointerValidator) Select(_ string, values [][]byte) (int, error) {
 		if err := json.Unmarshal(v, &ptr); err != nil {
 			continue
 		}
-		if ptr.Timestamp > now {
+		if ptr.Timestamp > fetchTime {
 			continue
 		}
 		if best == -1 || ptr.Timestamp > bestTs {
@@ -248,6 +266,10 @@ func (DRDPointerValidator) Select(_ string, values [][]byte) (int, error) {
 type DRDDataValidator struct{}
 
 func (DRDDataValidator) Validate(key string, value []byte) error {
+	return validateDRDData(key, value, time.Now().Unix())
+}
+
+func validateDRDData(key string, value []byte, fetchTime int64) error {
 	parts := strings.SplitN(key, "/", 3)
 	if len(parts) != 3 || parts[1] != "drd-data" {
 		return fmt.Errorf("invalid drd-data key: %s", key)
@@ -260,7 +282,7 @@ func (DRDDataValidator) Validate(key string, value []byte) error {
 	if err := json.Unmarshal(value, &drd); err != nil {
 		return fmt.Errorf("unmarshal DirectRelationsDependencies: %w", err)
 	}
-	if drd.ComputedAt > time.Now().Unix() {
+	if drd.ComputedAt > fetchTime {
 		return fmt.Errorf("computed_at is in the future")
 	}
 	return ValidateDRDSignature(&drd)
