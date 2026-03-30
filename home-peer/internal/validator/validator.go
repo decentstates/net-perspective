@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	canonicaljson "github.com/gibson042/canonicaljson-go"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -129,15 +130,22 @@ func (DRPointerValidator) Validate(key string, value []byte) error {
 	if ptr.ContentAddress == "" {
 		return fmt.Errorf("content_address is empty")
 	}
+	if ptr.Timestamp > time.Now().Unix() {
+		return fmt.Errorf("timestamp is in the future")
+	}
 	return nil
 }
 
 func (DRPointerValidator) Select(_ string, values [][]byte) (int, error) {
+	now := time.Now().Unix()
 	best := -1
 	var bestTs int64
 	for i, v := range values {
 		var ptr model.DRPointer
 		if err := json.Unmarshal(v, &ptr); err != nil {
+			continue
+		}
+		if ptr.Timestamp > now {
 			continue
 		}
 		if best == -1 || ptr.Timestamp > bestTs {
@@ -167,6 +175,9 @@ func (DRDataValidator) Validate(key string, value []byte) error {
 	var dr model.DirectRelations
 	if err := json.Unmarshal(value, &dr); err != nil {
 		return fmt.Errorf("unmarshal DirectRelations: %w", err)
+	}
+	if dr.Timestamp > time.Now().Unix() {
+		return fmt.Errorf("timestamp is in the future")
 	}
 	return ValidateDR(&dr)
 }
@@ -203,15 +214,22 @@ func (DRDPointerValidator) Validate(key string, value []byte) error {
 	if ptr.DRDContentAddress == "" {
 		return fmt.Errorf("drd_content_address is empty")
 	}
+	if ptr.Timestamp > time.Now().Unix() {
+		return fmt.Errorf("timestamp is in the future")
+	}
 	return nil
 }
 
 func (DRDPointerValidator) Select(_ string, values [][]byte) (int, error) {
+	now := time.Now().Unix()
 	best := -1
 	var bestTs int64
 	for i, v := range values {
 		var ptr model.DRDPointer
 		if err := json.Unmarshal(v, &ptr); err != nil {
+			continue
+		}
+		if ptr.Timestamp > now {
 			continue
 		}
 		if best == -1 || ptr.Timestamp > bestTs {
@@ -241,6 +259,9 @@ func (DRDDataValidator) Validate(key string, value []byte) error {
 	var drd model.DirectRelationsDependencies
 	if err := json.Unmarshal(value, &drd); err != nil {
 		return fmt.Errorf("unmarshal DirectRelationsDependencies: %w", err)
+	}
+	if drd.ComputedAt > time.Now().Unix() {
+		return fmt.Errorf("computed_at is in the future")
 	}
 	return ValidateDRDSignature(&drd)
 }
