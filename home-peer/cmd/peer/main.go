@@ -2,16 +2,13 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"flag"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
-	"time"
 
 	dht "github.com/libp2p/go-libp2p-kad-dht"
 	"github.com/libp2p/go-libp2p"
@@ -56,9 +53,8 @@ func main() {
 
 	// --- DHT (always server mode) ---
 	ns := record.NamespacedValidator{
-		"dr":    validator.DRValidator{},
-		"drd":   validator.DRDValidator{},
-		"myapp": validator.PermissiveValidator{},
+		"dr":  validator.DRValidator{},
+		"drd": validator.DRDValidator{},
 	}
 	ctx := context.Background()
 	d, err := dht.New(ctx, h,
@@ -96,13 +92,6 @@ func main() {
 	log.Printf("Peer ID: %s", h.ID())
 	for _, a := range h.Addrs() {
 		log.Printf("Listening on: %s/p2p/%s", a, h.ID())
-	}
-
-	// --- One-shot CLI subcommands (put/get/put-dr) ---
-	if args := flag.Args(); len(args) > 0 {
-		time.Sleep(500 * time.Millisecond) // let routing table settle
-		runSubcommand(ctx, d, args)
-		return
 	}
 
 	// --- Home peer HTTP API (optional) ---
@@ -164,56 +153,3 @@ func parseUserIDs(s string) []peer.ID {
 	return ids
 }
 
-func runSubcommand(ctx context.Context, d *dht.IpfsDHT, args []string) {
-	switch args[0] {
-	case "put":
-		if len(args) < 3 {
-			log.Fatalf("put requires <key> <value>")
-		}
-		key := "/myapp/" + args[1]
-		c, cancel := context.WithTimeout(ctx, 30*time.Second)
-		defer cancel()
-		if err := d.PutValue(c, key, []byte(args[2])); err != nil {
-			log.Fatalf("PutValue %s: %v", key, err)
-		}
-		fmt.Printf("Put key=%s\n", key)
-
-	case "get":
-		if len(args) < 2 {
-			log.Fatalf("get requires <key>")
-		}
-		key := "/myapp/" + args[1]
-		c, cancel := context.WithTimeout(ctx, 30*time.Second)
-		defer cancel()
-		val, err := d.GetValue(c, key)
-		if err != nil {
-			log.Fatalf("GetValue %s: %v", key, err)
-		}
-		fmt.Printf("%s\n", val)
-
-	case "put-dr":
-		if len(args) < 2 {
-			log.Fatalf("put-dr requires <json-file>")
-		}
-		data, err := os.ReadFile(args[1])
-		if err != nil {
-			log.Fatalf("Reading file: %v", err)
-		}
-		var tmp struct {
-			UserID string `json:"user_id"`
-		}
-		if err := json.Unmarshal(data, &tmp); err != nil {
-			log.Fatalf("Parsing JSON: %v", err)
-		}
-		key := "/dr/" + tmp.UserID
-		c, cancel := context.WithTimeout(ctx, 30*time.Second)
-		defer cancel()
-		if err := d.PutValue(c, key, data); err != nil {
-			log.Fatalf("PutValue %s: %v", key, err)
-		}
-		fmt.Printf("Put DR for user_id=%s\n", tmp.UserID)
-
-	default:
-		log.Fatalf("Unknown subcommand: %s (available: put, get, put-dr)", args[0])
-	}
-}
