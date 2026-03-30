@@ -1,9 +1,7 @@
 package validator
 
 import (
-	"crypto/sha256"
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -12,6 +10,22 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/net-perspective/home-peer/internal/model"
 )
+
+func validateContextPaths(dr *model.DirectRelations) error {
+	for _, entry := range dr.Contexts {
+		if err := model.ValidateContextPath(entry.Path); err != nil {
+			return err
+		}
+		for _, rel := range entry.Relations {
+			if rel.Type == "link" && len(rel.TargetContext) > 0 {
+				if err := model.ValidateContextPath(rel.TargetContext); err != nil {
+					return fmt.Errorf("target_context: %w", err)
+				}
+			}
+		}
+	}
+	return nil
+}
 
 // DRValidator validates DirectRelations records for the /dr/ namespace.
 type DRValidator struct{}
@@ -48,7 +62,10 @@ func (DRValidator) Validate(key string, value []byte) error {
 		return fmt.Errorf("decoding signature: %w", err)
 	}
 
-	// Build a copy without the signature field for canonical JSON
+	if err := validateContextPaths(&dr); err != nil {
+		return fmt.Errorf("invalid context path: %w", err)
+	}
+
 	payload := map[string]any{
 		"version":   dr.Version,
 		"user_id":   dr.UserID,
@@ -94,24 +111,24 @@ func (DRValidator) Select(key string, values [][]byte) (int, error) {
 type DRDValidator struct{}
 
 func (DRDValidator) Validate(key string, value []byte) error {
-	// key is "/drd/<hex-sha256>"
-	parts := strings.SplitN(key, "/", 3)
-	if len(parts) != 3 || parts[1] != "drd" {
+	// key is "/drd/<peer-id>/<dot-joined-context>"
+	parts := strings.SplitN(key, "/", 4)
+	if len(parts) != 4 || parts[1] != "drd" {
 		return fmt.Errorf("invalid drd key: %s", key)
 	}
-	expectedHash := parts[2]
+	expectedUserID := parts[2]
+	expectedCtx := parts[3]
 
 	var drd model.DirectRelationsDependencies
 	if err := json.Unmarshal(value, &drd); err != nil {
 		return fmt.Errorf("unmarshal DirectRelationsDependencies: %w", err)
 	}
 
-	// Verify key matches /drd/<hex(sha256("dep:"+user-id+":"+source-timestamp))>
-	raw := fmt.Sprintf("dep:%s:%d", drd.UserID, drd.SourceTimestamp)
-	hash := sha256.Sum256([]byte(raw))
-	gotHash := hex.EncodeToString(hash[:])
-	if gotHash != expectedHash {
-		return fmt.Errorf("drd key mismatch: expected %s got %s", expectedHash, gotHash)
+	if drd.UserID != expectedUserID {
+		return fmt.Errorf("user_id %s does not match key %s", drd.UserID, expectedUserID)
+	}
+	if model.ContextDotJoin(drd.Context) != expectedCtx {
+		return fmt.Errorf("context %v does not match key segment %s", drd.Context, expectedCtx)
 	}
 
 	pid, err := peer.Decode(drd.PeerID)
@@ -132,7 +149,8 @@ func (DRDValidator) Validate(key string, value []byte) error {
 	payload := map[string]any{
 		"version":          drd.Version,
 		"user_id":          drd.UserID,
-		"dependencies":     drd.Dependencies,
+		"context":          drd.Context,
+		"hops":             drd.Hops,
 		"sources":          drd.Sources,
 		"source_timestamp": drd.SourceTimestamp,
 		"computed_at":      drd.ComputedAt,

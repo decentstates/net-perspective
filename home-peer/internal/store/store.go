@@ -16,6 +16,12 @@ const (
 	keyUsers    = "meta:users"
 )
 
+// drdKey returns the local storage key for a per-context DRD.
+// Format: drd:<peer-id>:<dot-joined-context>
+func drdKey(userID string, contextPath []string) string {
+	return prefixDRD + userID + ":" + model.ContextDotJoin(contextPath)
+}
+
 // Store wraps a Badger database with typed helpers.
 type Store struct {
 	db *badger.DB
@@ -68,22 +74,22 @@ func (s *Store) GetDR(userID string) (*model.DirectRelations, error) {
 	return &dr, nil
 }
 
-// PutDRD stores a DirectRelationsDependencies document keyed by peer ID.
-func (s *Store) PutDRD(userID string, drd *model.DirectRelationsDependencies) error {
+// PutDRD stores a per-context DirectRelationsDependencies document.
+func (s *Store) PutDRD(userID string, contextPath []string, drd *model.DirectRelationsDependencies) error {
 	data, err := json.Marshal(drd)
 	if err != nil {
 		return err
 	}
 	return s.db.Update(func(txn *badger.Txn) error {
-		return txn.Set([]byte(prefixDRD+userID), data)
+		return txn.Set([]byte(drdKey(userID, contextPath)), data)
 	})
 }
 
-// GetDRD retrieves a DirectRelationsDependencies document by peer ID.
-func (s *Store) GetDRD(userID string) (*model.DirectRelationsDependencies, error) {
+// GetDRD retrieves a per-context DirectRelationsDependencies document.
+func (s *Store) GetDRD(userID string, contextPath []string) (*model.DirectRelationsDependencies, error) {
 	var drd model.DirectRelationsDependencies
 	err := s.db.View(func(txn *badger.Txn) error {
-		item, err := txn.Get([]byte(prefixDRD + userID))
+		item, err := txn.Get([]byte(drdKey(userID, contextPath)))
 		if err != nil {
 			return err
 		}
@@ -98,6 +104,30 @@ func (s *Store) GetDRD(userID string) (*model.DirectRelationsDependencies, error
 		return nil, err
 	}
 	return &drd, nil
+}
+
+// GetAllDRDs returns all stored DRDs for a given user (one per context).
+func (s *Store) GetAllDRDs(userID string) ([]*model.DirectRelationsDependencies, error) {
+	prefix := []byte(prefixDRD + userID + ":")
+	var results []*model.DirectRelationsDependencies
+
+	err := s.db.View(func(txn *badger.Txn) error {
+		opts := badger.DefaultIteratorOptions
+		opts.Prefix = prefix
+		it := txn.NewIterator(opts)
+		defer it.Close()
+		for it.Rewind(); it.Valid(); it.Next() {
+			var drd model.DirectRelationsDependencies
+			if err := it.Item().Value(func(val []byte) error {
+				return json.Unmarshal(val, &drd)
+			}); err != nil {
+				return err
+			}
+			results = append(results, &drd)
+		}
+		return nil
+	})
+	return results, err
 }
 
 // PutCache stores a cached DirectRelations document for use in dep computations.
@@ -141,7 +171,7 @@ func (s *Store) AddUser(userID string) error {
 		}
 		for _, u := range existing {
 			if u == userID {
-				return nil // already present
+				return nil
 			}
 		}
 		existing = append(existing, userID)
