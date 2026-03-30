@@ -12,6 +12,66 @@ import (
 	"github.com/net-perspective/home-peer/internal/model"
 )
 
+// parseKey splits a DHT key like "/namespace/value" and validates the namespace.
+func parseKey(key, namespace string) (string, error) {
+	parts := strings.SplitN(key, "/", 3)
+	if len(parts) != 3 || parts[1] != namespace {
+		return "", fmt.Errorf("invalid %s key: %s", namespace, key)
+	}
+	return parts[2], nil
+}
+
+// verifySignature verifies that signatureB64 is a valid signature over the canonical
+// JSON encoding of payload, using the public key embedded in peerIDStr.
+func verifySignature(peerIDStr, signatureB64 string, payload map[string]any) error {
+	pid, err := peer.Decode(peerIDStr)
+	if err != nil {
+		return fmt.Errorf("invalid peer ID %q: %w", peerIDStr, err)
+	}
+	pubKey, err := pid.ExtractPublicKey()
+	if err != nil {
+		return fmt.Errorf("extracting public key from peer ID: %w", err)
+	}
+	sigBytes, err := base64.StdEncoding.DecodeString(signatureB64)
+	if err != nil {
+		return fmt.Errorf("decoding signature: %w", err)
+	}
+	canonical, err := canonicaljson.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("canonical JSON: %w", err)
+	}
+	ok, err := pubKey.Verify(canonical, sigBytes)
+	if err != nil {
+		return fmt.Errorf("signature verification error: %w", err)
+	}
+	if !ok {
+		return fmt.Errorf("signature verification failed")
+	}
+	return nil
+}
+
+// selectLatestTimestamp picks the index of the value with the highest timestamp that
+// is not greater than fetchTime. getTs extracts the timestamp from a raw value; it
+// returns (0, false) when the value cannot be parsed.
+func selectLatestTimestamp(values [][]byte, fetchTime int64, getTs func([]byte) (int64, bool)) (int, error) {
+	best := -1
+	var bestTs int64
+	for i, v := range values {
+		ts, ok := getTs(v)
+		if !ok || ts > fetchTime {
+			continue
+		}
+		if best == -1 || ts > bestTs {
+			best = i
+			bestTs = ts
+		}
+	}
+	if best == -1 {
+		return 0, fmt.Errorf("no valid records")
+	}
+	return best, nil
+}
+
 func validateContextPaths(dr *model.DirectRelations) error {
 	for _, entry := range dr.Contexts {
 		if err := model.ValidateContextPath(entry.Path); err != nil {
@@ -30,36 +90,12 @@ func validateContextPaths(dr *model.DirectRelations) error {
 
 // ValidateDRSignature verifies the cryptographic signature on a DirectRelations document.
 func ValidateDRSignature(dr *model.DirectRelations) error {
-	pid, err := peer.Decode(dr.UserID)
-	if err != nil {
-		return fmt.Errorf("invalid user_id peer ID: %w", err)
-	}
-	pubKey, err := pid.ExtractPublicKey()
-	if err != nil {
-		return fmt.Errorf("extracting public key from peer ID: %w", err)
-	}
-	sigBytes, err := base64.StdEncoding.DecodeString(dr.Signature)
-	if err != nil {
-		return fmt.Errorf("decoding signature: %w", err)
-	}
-	payload := map[string]any{
+	return verifySignature(dr.UserID, dr.Signature, map[string]any{
 		"version":   dr.Version,
 		"user_id":   dr.UserID,
 		"timestamp": dr.Timestamp,
 		"contexts":  dr.Contexts,
-	}
-	canonical, err := canonicaljson.Marshal(payload)
-	if err != nil {
-		return fmt.Errorf("canonical JSON for DR: %w", err)
-	}
-	ok, err := pubKey.Verify(canonical, sigBytes)
-	if err != nil {
-		return fmt.Errorf("signature verification error: %w", err)
-	}
-	if !ok {
-		return fmt.Errorf("signature verification failed")
-	}
-	return nil
+	})
 }
 
 // ValidateDR validates context paths and verifies the signature on a DirectRelations document.
@@ -72,19 +108,7 @@ func ValidateDR(dr *model.DirectRelations) error {
 
 // ValidateDRDSignature verifies the cryptographic signature on a DirectRelationsDependencies document.
 func ValidateDRDSignature(drd *model.DirectRelationsDependencies) error {
-	pid, err := peer.Decode(drd.PeerID)
-	if err != nil {
-		return fmt.Errorf("invalid peer_id: %w", err)
-	}
-	pubKey, err := pid.ExtractPublicKey()
-	if err != nil {
-		return fmt.Errorf("extracting public key from peer_id: %w", err)
-	}
-	sigBytes, err := base64.StdEncoding.DecodeString(drd.Signature)
-	if err != nil {
-		return fmt.Errorf("decoding signature: %w", err)
-	}
-	payload := map[string]any{
+	return verifySignature(drd.PeerID, drd.Signature, map[string]any{
 		"version":                      drd.Version,
 		"user_id":                      drd.UserID,
 		"dr_content_address":           drd.DRContentAddress,
@@ -94,19 +118,7 @@ func ValidateDRDSignature(drd *model.DirectRelationsDependencies) error {
 		"source_timestamp":             drd.SourceTimestamp,
 		"computed_at":                  drd.ComputedAt,
 		"peer_id":                      drd.PeerID,
-	}
-	canonical, err := canonicaljson.Marshal(payload)
-	if err != nil {
-		return fmt.Errorf("canonical JSON for DRD: %w", err)
-	}
-	ok, err := pubKey.Verify(canonical, sigBytes)
-	if err != nil {
-		return fmt.Errorf("signature verification error: %w", err)
-	}
-	if !ok {
-		return fmt.Errorf("signature verification failed")
-	}
-	return nil
+	})
 }
 
 // DRPointerValidator validates records at /dr/<user-id>: a DRPointer mapping a user to
@@ -118,12 +130,10 @@ func (DRPointerValidator) Validate(key string, value []byte) error {
 }
 
 func validateDRPointer(key string, value []byte, fetchTime int64) error {
-	parts := strings.SplitN(key, "/", 3)
-	if len(parts) != 3 || parts[1] != "dr" {
-		return fmt.Errorf("invalid dr key: %s", key)
+	expectedUserID, err := parseKey(key, "dr")
+	if err != nil {
+		return err
 	}
-	expectedUserID := parts[2]
-
 	var ptr model.DRPointer
 	if err := json.Unmarshal(value, &ptr); err != nil {
 		return fmt.Errorf("unmarshal DRPointer: %w", err)
@@ -141,29 +151,13 @@ func validateDRPointer(key string, value []byte, fetchTime int64) error {
 }
 
 func (DRPointerValidator) Select(_ string, values [][]byte) (int, error) {
-	return selectDRPointer(values, time.Now().Unix())
-}
-
-func selectDRPointer(values [][]byte, fetchTime int64) (int, error) {
-	best := -1
-	var bestTs int64
-	for i, v := range values {
+	return selectLatestTimestamp(values, time.Now().Unix(), func(v []byte) (int64, bool) {
 		var ptr model.DRPointer
-		if err := json.Unmarshal(v, &ptr); err != nil {
-			continue
+		if json.Unmarshal(v, &ptr) != nil {
+			return 0, false
 		}
-		if ptr.Timestamp > fetchTime {
-			continue
-		}
-		if best == -1 || ptr.Timestamp > bestTs {
-			best = i
-			bestTs = ptr.Timestamp
-		}
-	}
-	if best == -1 {
-		return 0, fmt.Errorf("no valid DRPointer records")
-	}
-	return best, nil
+		return ptr.Timestamp, true
+	})
 }
 
 // DRDataValidator validates records at /dr-data/<hash>: raw DirectRelations bytes.
@@ -175,11 +169,10 @@ func (DRDataValidator) Validate(key string, value []byte) error {
 }
 
 func validateDRData(key string, value []byte, fetchTime int64) error {
-	parts := strings.SplitN(key, "/", 3)
-	if len(parts) != 3 || parts[1] != "dr-data" {
-		return fmt.Errorf("invalid dr-data key: %s", key)
+	expectedAddr, err := parseKey(key, "dr-data")
+	if err != nil {
+		return err
 	}
-	expectedAddr := parts[2]
 	if model.ContentAddr(value) != expectedAddr {
 		return fmt.Errorf("content address mismatch: data does not hash to %s", expectedAddr)
 	}
@@ -213,12 +206,10 @@ func (DRDPointerValidator) Validate(key string, value []byte) error {
 }
 
 func validateDRDPointer(key string, value []byte, fetchTime int64) error {
-	parts := strings.SplitN(key, "/", 3)
-	if len(parts) != 3 || parts[1] != "drd" {
-		return fmt.Errorf("invalid drd key: %s", key)
+	expectedDRAddr, err := parseKey(key, "drd")
+	if err != nil {
+		return err
 	}
-	expectedDRAddr := parts[2]
-
 	var ptr model.DRDPointer
 	if err := json.Unmarshal(value, &ptr); err != nil {
 		return fmt.Errorf("unmarshal DRDPointer: %w", err)
@@ -236,29 +227,13 @@ func validateDRDPointer(key string, value []byte, fetchTime int64) error {
 }
 
 func (DRDPointerValidator) Select(_ string, values [][]byte) (int, error) {
-	return selectDRDPointer(values, time.Now().Unix())
-}
-
-func selectDRDPointer(values [][]byte, fetchTime int64) (int, error) {
-	best := -1
-	var bestTs int64
-	for i, v := range values {
+	return selectLatestTimestamp(values, time.Now().Unix(), func(v []byte) (int64, bool) {
 		var ptr model.DRDPointer
-		if err := json.Unmarshal(v, &ptr); err != nil {
-			continue
+		if json.Unmarshal(v, &ptr) != nil {
+			return 0, false
 		}
-		if ptr.Timestamp > fetchTime {
-			continue
-		}
-		if best == -1 || ptr.Timestamp > bestTs {
-			best = i
-			bestTs = ptr.Timestamp
-		}
-	}
-	if best == -1 {
-		return 0, fmt.Errorf("no valid DRDPointer records")
-	}
-	return best, nil
+		return ptr.Timestamp, true
+	})
 }
 
 // DRDDataValidator validates records at /drd-data/<hash>: raw DirectRelationsDependencies bytes.
@@ -270,11 +245,10 @@ func (DRDDataValidator) Validate(key string, value []byte) error {
 }
 
 func validateDRDData(key string, value []byte, fetchTime int64) error {
-	parts := strings.SplitN(key, "/", 3)
-	if len(parts) != 3 || parts[1] != "drd-data" {
-		return fmt.Errorf("invalid drd-data key: %s", key)
+	expectedAddr, err := parseKey(key, "drd-data")
+	if err != nil {
+		return err
 	}
-	expectedAddr := parts[2]
 	if model.ContentAddr(value) != expectedAddr {
 		return fmt.Errorf("content address mismatch: data does not hash to %s", expectedAddr)
 	}
@@ -305,11 +279,10 @@ func (DRDDataValidator) Select(_ string, values [][]byte) (int, error) {
 type DepDataValidator struct{}
 
 func (DepDataValidator) Validate(key string, value []byte) error {
-	parts := strings.SplitN(key, "/", 3)
-	if len(parts) != 3 || parts[1] != "dep" {
-		return fmt.Errorf("invalid dep key: %s", key)
+	expectedAddr, err := parseKey(key, "dep")
+	if err != nil {
+		return err
 	}
-	expectedAddr := parts[2]
 	if model.ContentAddr(value) != expectedAddr {
 		return fmt.Errorf("content address mismatch: data does not hash to %s", expectedAddr)
 	}

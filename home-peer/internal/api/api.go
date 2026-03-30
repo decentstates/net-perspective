@@ -45,11 +45,7 @@ func (s *Server) handlePublish(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.hp.Publish(&dr); err != nil {
-		if errors.Is(err, homepeer.ErrNotHomed) {
-			writeError(w, http.StatusNotFound, "user not homed")
-			return
-		}
-		writeError(w, http.StatusBadRequest, err.Error())
+		writeHomepeerError(w, err, http.StatusBadRequest)
 		return
 	}
 
@@ -61,11 +57,7 @@ func (s *Server) handleFeed(w http.ResponseWriter, r *http.Request) {
 
 	feed, err := s.hp.Feed(r.Context(), userID)
 	if err != nil {
-		if errors.Is(err, homepeer.ErrNotHomed) {
-			writeError(w, http.StatusNotFound, "user not homed")
-			return
-		}
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeHomepeerError(w, err, http.StatusInternalServerError)
 		return
 	}
 	writeJSON(w, http.StatusOK, feed)
@@ -76,11 +68,7 @@ func (s *Server) handleDeps(w http.ResponseWriter, r *http.Request) {
 
 	drd, err := s.hp.Deps(r.Context(), userID)
 	if err != nil {
-		if errors.Is(err, homepeer.ErrNotHomed) {
-			writeError(w, http.StatusNotFound, "user not homed")
-			return
-		}
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeHomepeerError(w, err, http.StatusInternalServerError)
 		return
 	}
 	if drd == nil {
@@ -124,6 +112,15 @@ func (s *Server) handleGetDep(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, s.hp.Health())
+}
+
+// writeHomepeerError writes a 404 for ErrNotHomed, or fallbackCode for any other error.
+func writeHomepeerError(w http.ResponseWriter, err error, fallbackCode int) {
+	if errors.Is(err, homepeer.ErrNotHomed) {
+		writeError(w, http.StatusNotFound, "user not homed")
+		return
+	}
+	writeError(w, fallbackCode, err.Error())
 }
 
 func writeJSON(w http.ResponseWriter, code int, v any) {

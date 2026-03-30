@@ -149,6 +149,22 @@ func (hp *HomePeer) Health() HealthInfo {
 	}
 }
 
+// dhtGet fetches a single value from the DHT with a standard timeout.
+func (hp *HomePeer) dhtGet(ctx context.Context, key string) ([]byte, error) {
+	fetchCtx, cancel := context.WithTimeout(ctx, dhtTimeout)
+	defer cancel()
+	return hp.dht.GetValue(fetchCtx, key)
+}
+
+// dhtPut publishes a value to the DHT with a standard timeout, logging on failure.
+func (hp *HomePeer) dhtPut(ctx context.Context, key string, data []byte) {
+	putCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	if err := hp.dht.PutValue(putCtx, key, data); err != nil {
+		log.Printf("DHT put %s: %v", key, err)
+	}
+}
+
 // fetchContent returns the bytes for a content-addressed item, checking the local store
 // first. On a cache miss it fetches from the DHT using dhtKey, stores the result, and
 // returns it. Returns nil, nil when the item is absent from both.
@@ -158,9 +174,7 @@ func (hp *HomePeer) fetchContent(ctx context.Context, dhtKey, addr string) ([]by
 	} else if data != nil {
 		return data, nil
 	}
-	fetchCtx, cancel := context.WithTimeout(ctx, dhtTimeout)
-	data, err := hp.dht.GetValue(fetchCtx, dhtKey)
-	cancel()
+	data, err := hp.dhtGet(ctx, dhtKey)
 	if err != nil {
 		return nil, err
 	}
@@ -170,9 +184,7 @@ func (hp *HomePeer) fetchContent(ctx context.Context, dhtKey, addr string) ([]by
 
 // fetchDRForUser resolves a user's current DR from the DHT pointer and fetches the content.
 func (hp *HomePeer) fetchDRForUser(ctx context.Context, userID string) (*model.DirectRelations, string) {
-	fetchCtx, cancel := context.WithTimeout(ctx, dhtTimeout)
-	ptrData, err := hp.dht.GetValue(fetchCtx, "/dr/"+userID)
-	cancel()
+	ptrData, err := hp.dhtGet(ctx, "/dr/"+userID)
 	if err != nil {
 		return nil, ""
 	}
@@ -193,9 +205,7 @@ func (hp *HomePeer) fetchDRForUser(ctx context.Context, userID string) (*model.D
 
 // fetchDRD resolves the DRD for a given DR content address from the DHT pointer and fetches the content.
 func (hp *HomePeer) fetchDRD(ctx context.Context, drAddr string) (*model.DirectRelationsDependencies, error) {
-	fetchCtx, cancel := context.WithTimeout(ctx, dhtTimeout)
-	ptrData, err := hp.dht.GetValue(fetchCtx, "/drd/"+drAddr)
-	cancel()
+	ptrData, err := hp.dhtGet(ctx, "/drd/"+drAddr)
 	if err != nil {
 		return nil, nil
 	}
@@ -216,18 +226,11 @@ func (hp *HomePeer) fetchDRD(ctx context.Context, drAddr string) (*model.DirectR
 
 // publishDRToDHT publishes DR content and the user-id pointer to the DHT.
 func (hp *HomePeer) publishDRToDHT(userID, addr string, data []byte, timestamp int64) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	if err := hp.dht.PutValue(ctx, "/dr-data/"+addr, data); err != nil {
-		log.Printf("publishing DR content for %s: %v", userID, err)
-	}
-
+	ctx := context.Background()
+	hp.dhtPut(ctx, "/dr-data/"+addr, data)
 	ptr := model.DRPointer{UserID: userID, ContentAddress: addr, Timestamp: timestamp}
 	ptrData, _ := json.Marshal(ptr)
-	if err := hp.dht.PutValue(ctx, "/dr/"+userID, ptrData); err != nil {
-		log.Printf("publishing DR pointer for %s: %v", userID, err)
-	}
+	hp.dhtPut(ctx, "/dr/"+userID, ptrData)
 }
 
 // buildDependencyBundle fetches DR documents for all given user IDs, bundles them into a
@@ -277,60 +280,48 @@ func decompressBundle(data []byte) ([]model.DirectRelations, error) {
 	return drs, nil
 }
 
-// computeDRD fetches dependency DRDs, builds the dependency bundle, then produces and
-// stores the DRD header. Returns the DRD, its serialised bytes, and its content address.
-func (hp *HomePeer) computeDRD(ctx context.Context, dr *model.DirectRelations, drAddr string) (*model.DirectRelationsDependencies, []byte, string, error) {
-	hop1Seen := map[string]bool{}
-	var hop1Users []string
+// extractHop1Users collects the unique set of hop-1 target users from a DR document.
+func extractHop1Users(dr *model.DirectRelations) []string {
+	seen := map[string]bool{}
+	var users []string
 	for _, ctxEntry := range dr.Contexts {
 		for _, rel := range ctxEntry.Relations {
-			if rel.Type != "link" || rel.TargetUser == "" {
-				continue
-			}
-			if !hop1Seen[rel.TargetUser] {
-				hop1Seen[rel.TargetUser] = true
-				hop1Users = append(hop1Users, rel.TargetUser)
+			if rel.Type == "link" && rel.TargetUser != "" && !seen[rel.TargetUser] {
+				seen[rel.TargetUser] = true
+				users = append(users, rel.TargetUser)
 			}
 		}
 	}
+	return users
+}
 
-	hops := make(model.HopDependencies)
-	hops["1"] = hop1Users
-	for i := 2; i <= maxHops; i++ {
-		hops[fmt.Sprintf("%d", i)] = []string{}
-	}
-
-	visited := make(map[string]bool)
+// mergeRemoteHops fetches each hop-1 user's DRD from the DHT and merges their hop
+// lists into hops (offset by +1). Returns the list of DRD content addresses consumed.
+func (hp *HomePeer) mergeRemoteHops(ctx context.Context, hop1Users []string, hops model.HopDependencies) (sources []string) {
+	visited := make(map[string]bool, len(hop1Users))
 	for _, uid := range hop1Users {
 		visited[uid] = true
 	}
-
-	sources := []string{}
 	seenSources := map[string]bool{}
 
 	for _, targetUID := range hop1Users {
-		fetchCtx, cancel := context.WithTimeout(ctx, dhtTimeout)
-		drPtrData, err := hp.dht.GetValue(fetchCtx, "/dr/"+targetUID)
-		cancel()
+		drPtrData, err := hp.dhtGet(ctx, "/dr/"+targetUID)
 		if err != nil {
 			continue
 		}
 		var drPtr model.DRPointer
-		if err := json.Unmarshal(drPtrData, &drPtr); err != nil {
+		if json.Unmarshal(drPtrData, &drPtr) != nil {
 			continue
 		}
 		theirDRAddr := drPtr.ContentAddress
-
 		_, _ = hp.fetchContent(ctx, "/dr-data/"+theirDRAddr, theirDRAddr)
 
-		fetchCtx3, cancel3 := context.WithTimeout(ctx, dhtTimeout)
-		drdPtrData, err := hp.dht.GetValue(fetchCtx3, "/drd/"+theirDRAddr)
-		cancel3()
+		drdPtrData, err := hp.dhtGet(ctx, "/drd/"+theirDRAddr)
 		if err != nil {
 			continue
 		}
 		var drdPtr model.DRDPointer
-		if err := json.Unmarshal(drdPtrData, &drdPtr); err != nil {
+		if json.Unmarshal(drdPtrData, &drdPtr) != nil {
 			continue
 		}
 		drdAddr := drdPtr.DRDContentAddress
@@ -339,9 +330,8 @@ func (hp *HomePeer) computeDRD(ctx context.Context, dr *model.DirectRelations, d
 		if err != nil {
 			continue
 		}
-
 		var remoteDRD model.DirectRelationsDependencies
-		if err := json.Unmarshal(drdData, &remoteDRD); err != nil {
+		if json.Unmarshal(drdData, &remoteDRD) != nil {
 			continue
 		}
 
@@ -349,17 +339,30 @@ func (hp *HomePeer) computeDRD(ctx context.Context, dr *model.DirectRelations, d
 			seenSources[drdAddr] = true
 			sources = append(sources, drdAddr)
 		}
-
 		for k := 1; k < maxHops; k++ {
 			for _, uid := range remoteDRD.Hops[fmt.Sprintf("%d", k)] {
 				if !visited[uid] {
 					visited[uid] = true
-					ourHop := fmt.Sprintf("%d", k+1)
-					hops[ourHop] = append(hops[ourHop], uid)
+					hops[fmt.Sprintf("%d", k+1)] = append(hops[fmt.Sprintf("%d", k+1)], uid)
 				}
 			}
 		}
 	}
+	return sources
+}
+
+// computeDRD fetches dependency DRDs, builds the dependency bundle, then produces and
+// stores the DRD header. Returns the DRD, its serialised bytes, and its content address.
+func (hp *HomePeer) computeDRD(ctx context.Context, dr *model.DirectRelations, drAddr string) (*model.DirectRelationsDependencies, []byte, string, error) {
+	hop1Users := extractHop1Users(dr)
+
+	hops := make(model.HopDependencies)
+	hops["1"] = hop1Users
+	for i := 2; i <= maxHops; i++ {
+		hops[fmt.Sprintf("%d", i)] = []string{}
+	}
+
+	sources := hp.mergeRemoteHops(ctx, hop1Users, hops)
 
 	allDepSeen := map[string]bool{dr.UserID: true}
 	var allDepUsers []string
@@ -397,11 +400,11 @@ func (hp *HomePeer) computeDRD(ctx context.Context, dr *model.DirectRelations, d
 	if err != nil {
 		return nil, nil, "", err
 	}
-	drdAddr := model.ContentAddr(drdData)
-	if err := hp.store.Put(drdAddr, drdData); err != nil {
+	drdAddr2 := model.ContentAddr(drdData)
+	if err := hp.store.Put(drdAddr2, drdData); err != nil {
 		return nil, nil, "", fmt.Errorf("storing DRD: %w", err)
 	}
-	return drd, drdData, drdAddr, nil
+	return drd, drdData, drdAddr2, nil
 }
 
 // publishDRD computes and publishes the DRD header and dependency bundle to the DHT.
@@ -412,18 +415,11 @@ func (hp *HomePeer) publishDRD(ctx context.Context, dr *model.DirectRelations, d
 		return
 	}
 
-	pubCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-
-	if err := hp.dht.PutValue(pubCtx, "/drd-data/"+drdAddr, drdData); err != nil {
-		log.Printf("publishing DRD content for %s: %v", dr.UserID, err)
-	}
+	hp.dhtPut(ctx, "/drd-data/"+drdAddr, drdData)
 
 	if drd.DependenciesContentAddress != "" {
 		if bundleData, _ := hp.store.Get(drd.DependenciesContentAddress); bundleData != nil {
-			if err := hp.dht.PutValue(pubCtx, "/dep/"+drd.DependenciesContentAddress, bundleData); err != nil {
-				log.Printf("publishing dep bundle for %s: %v", dr.UserID, err)
-			}
+			hp.dhtPut(ctx, "/dep/"+drd.DependenciesContentAddress, bundleData)
 		}
 	}
 
@@ -434,9 +430,7 @@ func (hp *HomePeer) publishDRD(ctx context.Context, dr *model.DirectRelations, d
 		PeerID:            hp.host.ID().String(),
 	}
 	ptrData, _ := json.Marshal(ptr)
-	if err := hp.dht.PutValue(pubCtx, "/drd/"+drAddr, ptrData); err != nil {
-		log.Printf("publishing DRD pointer for %s: %v", dr.UserID, err)
-	}
+	hp.dhtPut(ctx, "/drd/"+drAddr, ptrData)
 }
 
 // signDRD signs a DirectRelationsDependencies document with the home peer's key.
