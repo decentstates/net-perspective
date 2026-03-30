@@ -26,6 +26,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /users/{userid}/feed", s.handleFeed)
 	mux.HandleFunc("GET /users/{userid}/deps", s.handleDeps)
 	mux.HandleFunc("GET /direct-relations/{userid}", s.handleGetDR)
+	mux.HandleFunc("GET /dep/{addr}", s.handleGetDep)
 	mux.HandleFunc("GET /health", s.handleHealth)
 	return mux
 }
@@ -102,6 +103,23 @@ func (s *Server) handleGetDR(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, dr)
+}
+
+func (s *Server) handleGetDep(w http.ResponseWriter, r *http.Request) {
+	addr := r.PathValue("addr")
+	data, err := s.hp.GetDep(addr)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if data == nil {
+		writeError(w, http.StatusNotFound, "not found")
+		return
+	}
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Content-Encoding", "gzip")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(data)
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {

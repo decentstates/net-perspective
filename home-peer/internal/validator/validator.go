@@ -84,14 +84,15 @@ func ValidateDRDSignature(drd *model.DirectRelationsDependencies) error {
 		return fmt.Errorf("decoding signature: %w", err)
 	}
 	payload := map[string]any{
-		"version":            drd.Version,
-		"user_id":            drd.UserID,
-		"dr_content_address": drd.DRContentAddress,
-		"hops":               drd.Hops,
-		"sources":            drd.Sources,
-		"source_timestamp":   drd.SourceTimestamp,
-		"computed_at":        drd.ComputedAt,
-		"peer_id":            drd.PeerID,
+		"version":                      drd.Version,
+		"user_id":                      drd.UserID,
+		"dr_content_address":           drd.DRContentAddress,
+		"hops":                         drd.Hops,
+		"sources":                      drd.Sources,
+		"dependencies_content_address": drd.DependenciesContentAddress,
+		"source_timestamp":             drd.SourceTimestamp,
+		"computed_at":                  drd.ComputedAt,
+		"peer_id":                      drd.PeerID,
 	}
 	canonical, err := canonicaljson.Marshal(payload)
 	if err != nil {
@@ -253,4 +254,28 @@ func (DRDDataValidator) Select(_ string, values [][]byte) (int, error) {
 		}
 	}
 	return 0, fmt.Errorf("no valid DRD data records")
+}
+
+// DepDataValidator validates records at /dep/<hash>: gzip-compressed dependency bundles.
+// Checks that SHA-256 of the value matches the key hash. Content integrity is guaranteed
+// by the hash; authenticity is guaranteed by the DRD header signature that references this address.
+type DepDataValidator struct{}
+
+func (DepDataValidator) Validate(key string, value []byte) error {
+	parts := strings.SplitN(key, "/", 3)
+	if len(parts) != 3 || parts[1] != "dep" {
+		return fmt.Errorf("invalid dep key: %s", key)
+	}
+	expectedAddr := parts[2]
+	if model.ContentAddr(value) != expectedAddr {
+		return fmt.Errorf("content address mismatch: data does not hash to %s", expectedAddr)
+	}
+	return nil
+}
+
+func (DepDataValidator) Select(_ string, values [][]byte) (int, error) {
+	if len(values) > 0 {
+		return 0, nil
+	}
+	return 0, fmt.Errorf("no dep records")
 }

@@ -1,6 +1,8 @@
 package homepeer
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -144,7 +146,8 @@ func (hp *HomePeer) Publish(dr *model.DirectRelations) error {
 	return nil
 }
 
-// Feed returns all cached DirectRelations for the full dependency set of a homed user.
+// Feed returns all DirectRelations for a homed user's full dependency set.
+// If a dependency bundle is available it is used; otherwise individual cached DRs are returned.
 func (hp *HomePeer) Feed(userID string) ([]*model.DirectRelations, error) {
 	hp.mu.RLock()
 	hu, exists := hp.users[userID]
@@ -153,12 +156,12 @@ func (hp *HomePeer) Feed(userID string) ([]*model.DirectRelations, error) {
 		return nil, ErrNotHomed
 	}
 
-	feed := []*model.DirectRelations{}
-
 	hp.mu.RLock()
 	drAddr := hu.drContentAddr
 	drd := hu.drd
 	hp.mu.RUnlock()
+
+	feed := []*model.DirectRelations{}
 
 	if drAddr != "" {
 		if data, _ := hp.store.Get(drAddr); data != nil {
@@ -169,25 +172,40 @@ func (hp *HomePeer) Feed(userID string) ([]*model.DirectRelations, error) {
 		}
 	}
 
-	if drd != nil {
-		seen := map[string]bool{userID: true}
-		for _, uids := range drd.Hops {
-			for _, uid := range uids {
-				if seen[uid] {
-					continue
+	if drd == nil {
+		return feed, nil
+	}
+
+	if drd.DependenciesContentAddress != "" {
+		// Use the pre-built bundle for efficient retrieval.
+		if bundleData, _ := hp.store.Get(drd.DependenciesContentAddress); bundleData != nil {
+			if drs, err := decompressBundle(bundleData); err == nil {
+				for i := range drs {
+					feed = append(feed, &drs[i])
 				}
-				seen[uid] = true
-				hp.mu.RLock()
-				addr := hp.cachedDRAddrs[uid]
-				hp.mu.RUnlock()
-				if addr == "" {
-					continue
-				}
-				if data, _ := hp.store.Get(addr); data != nil {
-					var dr model.DirectRelations
-					if json.Unmarshal(data, &dr) == nil {
-						feed = append(feed, &dr)
-					}
+				return feed, nil
+			}
+		}
+	}
+
+	// Fallback: individual lookups for each dependency user.
+	seen := map[string]bool{userID: true}
+	for _, uids := range drd.Hops {
+		for _, uid := range uids {
+			if seen[uid] {
+				continue
+			}
+			seen[uid] = true
+			hp.mu.RLock()
+			addr := hp.cachedDRAddrs[uid]
+			hp.mu.RUnlock()
+			if addr == "" {
+				continue
+			}
+			if data, _ := hp.store.Get(addr); data != nil {
+				var dr model.DirectRelations
+				if json.Unmarshal(data, &dr) == nil {
+					feed = append(feed, &dr)
 				}
 			}
 		}
@@ -196,7 +214,7 @@ func (hp *HomePeer) Feed(userID string) ([]*model.DirectRelations, error) {
 	return feed, nil
 }
 
-// Deps returns the current DRD for a homed user, or nil if not yet computed.
+// Deps returns the current DRD header for a homed user, or nil if not yet computed.
 func (hp *HomePeer) Deps(userID string) (*model.DirectRelationsDependencies, error) {
 	hp.mu.RLock()
 	hu, exists := hp.users[userID]
@@ -235,6 +253,11 @@ func (hp *HomePeer) CachedDR(userID string) (*model.DirectRelations, error) {
 	return &dr, nil
 }
 
+// GetDep retrieves a raw dependency bundle by content address.
+func (hp *HomePeer) GetDep(addr string) ([]byte, error) {
+	return hp.store.Get(addr)
+}
+
 // Health returns the peer's current runtime status.
 func (hp *HomePeer) Health() HealthInfo {
 	hp.mu.RLock()
@@ -261,12 +284,10 @@ func (hp *HomePeer) publishDRToDHT(userID, addr string, data []byte, timestamp i
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	// Step 2: DHT entry for content address
 	if err := hp.dht.PutValue(ctx, "/dr-data/"+addr, data); err != nil {
 		log.Printf("publishing DR content for %s: %v", userID, err)
 	}
 
-	// Step 3: DHT pointer user-id → (content-address, timestamp)
 	ptr := model.DRPointer{UserID: userID, ContentAddress: addr, Timestamp: timestamp}
 	ptrData, _ := json.Marshal(ptr)
 	if err := hp.dht.PutValue(ctx, "/dr/"+userID, ptrData); err != nil {
@@ -274,8 +295,108 @@ func (hp *HomePeer) publishDRToDHT(userID, addr string, data []byte, timestamp i
 	}
 }
 
+// fetchDRForUser fetches a DirectRelations for any user ID, checking the local store first
+// and falling back to DHT. Updates cachedDRAddrs as a side-effect.
+func (hp *HomePeer) fetchDRForUser(ctx context.Context, userID string) (*model.DirectRelations, string) {
+	hp.mu.RLock()
+	addr := hp.cachedDRAddrs[userID]
+	if hu, ok := hp.users[userID]; ok {
+		addr = hu.drContentAddr
+	}
+	hp.mu.RUnlock()
+
+	if addr != "" {
+		if data, _ := hp.store.Get(addr); data != nil {
+			var dr model.DirectRelations
+			if json.Unmarshal(data, &dr) == nil {
+				return &dr, addr
+			}
+		}
+	}
+
+	// Fall back to DHT.
+	fetchCtx, cancel := context.WithTimeout(ctx, dhtTimeout)
+	ptrData, err := hp.dht.GetValue(fetchCtx, "/dr/"+userID)
+	cancel()
+	if err != nil {
+		return nil, ""
+	}
+	var ptr model.DRPointer
+	if json.Unmarshal(ptrData, &ptr) != nil {
+		return nil, ""
+	}
+
+	fetchCtx2, cancel2 := context.WithTimeout(ctx, dhtTimeout)
+	drData, err := hp.dht.GetValue(fetchCtx2, "/dr-data/"+ptr.ContentAddress)
+	cancel2()
+	if err != nil {
+		return nil, ""
+	}
+
+	_ = hp.store.Put(ptr.ContentAddress, drData)
+	hp.mu.Lock()
+	hp.cachedDRAddrs[userID] = ptr.ContentAddress
+	hp.mu.Unlock()
+
+	var dr model.DirectRelations
+	if json.Unmarshal(drData, &dr) != nil {
+		return nil, ""
+	}
+	return &dr, ptr.ContentAddress
+}
+
+// buildDependencyBundle fetches DR documents for all given user IDs, bundles them into a
+// gzip-compressed JSON array, stores it in the content store, and returns the bytes and
+// content address.
+func (hp *HomePeer) buildDependencyBundle(ctx context.Context, depUserIDs []string) ([]byte, string, error) {
+	var drs []model.DirectRelations
+	for _, uid := range depUserIDs {
+		dr, _ := hp.fetchDRForUser(ctx, uid)
+		if dr != nil {
+			drs = append(drs, *dr)
+		}
+	}
+
+	jsonBytes, err := json.Marshal(drs)
+	if err != nil {
+		return nil, "", fmt.Errorf("marshalling bundle: %w", err)
+	}
+
+	var buf bytes.Buffer
+	gz := gzip.NewWriter(&buf)
+	if _, err := gz.Write(jsonBytes); err != nil {
+		return nil, "", fmt.Errorf("compressing bundle: %w", err)
+	}
+	if err := gz.Close(); err != nil {
+		return nil, "", fmt.Errorf("closing gzip writer: %w", err)
+	}
+
+	compressed := buf.Bytes()
+	addr := model.ContentAddr(compressed)
+
+	if err := hp.store.Put(addr, compressed); err != nil {
+		return nil, "", fmt.Errorf("storing bundle: %w", err)
+	}
+
+	return compressed, addr, nil
+}
+
+// decompressBundle decompresses a gzip-compressed JSON array of DirectRelations.
+func decompressBundle(data []byte) ([]model.DirectRelations, error) {
+	gr, err := gzip.NewReader(bytes.NewReader(data))
+	if err != nil {
+		return nil, err
+	}
+	defer gr.Close()
+	var drs []model.DirectRelations
+	if err := json.NewDecoder(gr).Decode(&drs); err != nil {
+		return nil, err
+	}
+	return drs, nil
+}
+
 // computeDRD fetches and stores the direct-relations-dependencies for each dependency user,
-// then produces and stores the DRD for the given DR.
+// builds the dependency bundle, then produces and stores the DRD header.
 // Returns the DRD, its serialised bytes, and its content address.
 func (hp *HomePeer) computeDRD(ctx context.Context, dr *model.DirectRelations, drAddr string) (*model.DirectRelationsDependencies, []byte, string, error) {
 	// Collect unique hop-1 link targets across all contexts.
@@ -307,7 +428,7 @@ func (hp *HomePeer) computeDRD(ctx context.Context, dr *model.DirectRelations, d
 	sources := []string{}
 	seenSources := map[string]bool{}
 
-	// Step 1: fetch (and store) the DRD for each hop-1 dependency user.
+	// Fetch (and store) the DRD for each hop-1 dependency user.
 	for _, targetUID := range hop1Users {
 		// Fetch their DRPointer to find their current DR content address.
 		fetchCtx, cancel := context.WithTimeout(ctx, dhtTimeout)
@@ -322,7 +443,6 @@ func (hp *HomePeer) computeDRD(ctx context.Context, dr *model.DirectRelations, d
 		}
 		theirDRAddr := drPtr.ContentAddress
 
-		// Cache their DR address and fetch their DR content if not already stored.
 		hp.mu.Lock()
 		hp.cachedDRAddrs[targetUID] = theirDRAddr
 		hp.mu.Unlock()
@@ -349,7 +469,6 @@ func (hp *HomePeer) computeDRD(ctx context.Context, dr *model.DirectRelations, d
 		}
 		drdAddr := drdPtr.DRDContentAddress
 
-		// Fetch and store their DRD content.
 		drdData, _ := hp.store.Get(drdAddr)
 		if drdData == nil {
 			fetchCtx4, cancel4 := context.WithTimeout(ctx, dhtTimeout)
@@ -371,7 +490,6 @@ func (hp *HomePeer) computeDRD(ctx context.Context, dr *model.DirectRelations, d
 			sources = append(sources, drdAddr)
 		}
 
-		// Inductively merge their hops into ours, shifted by one.
 		for k := 1; k < maxHops; k++ {
 			for _, uid := range remoteDRD.Hops[fmt.Sprintf("%d", k)] {
 				if !visited[uid] {
@@ -383,16 +501,35 @@ func (hp *HomePeer) computeDRD(ctx context.Context, dr *model.DirectRelations, d
 		}
 	}
 
-	// Step 2: produce and store the DRD.
+	// Collect all dep user IDs across all hops for the bundle.
+	allDepSeen := map[string]bool{dr.UserID: true}
+	var allDepUsers []string
+	for _, uids := range hops {
+		for _, uid := range uids {
+			if !allDepSeen[uid] {
+				allDepSeen[uid] = true
+				allDepUsers = append(allDepUsers, uid)
+			}
+		}
+	}
+
+	// Build the dependency bundle (fetches DRs for hop-2+ users as needed).
+	_, bundleAddr, err := hp.buildDependencyBundle(ctx, allDepUsers)
+	if err != nil {
+		log.Printf("building dependency bundle for %s: %v", dr.UserID, err)
+		bundleAddr = ""
+	}
+
 	drd := &model.DirectRelationsDependencies{
-		Version:          1,
-		UserID:           dr.UserID,
-		DRContentAddress: drAddr,
-		Hops:             hops,
-		Sources:          sources,
-		SourceTimestamp:  dr.Timestamp,
-		ComputedAt:       time.Now().Unix(),
-		PeerID:           hp.host.ID().String(),
+		Version:                    1,
+		UserID:                     dr.UserID,
+		DRContentAddress:           drAddr,
+		Hops:                       hops,
+		Sources:                    sources,
+		DependenciesContentAddress: bundleAddr,
+		SourceTimestamp:            dr.Timestamp,
+		ComputedAt:                 time.Now().Unix(),
+		PeerID:                     hp.host.ID().String(),
 	}
 	if err := hp.signDRD(drd); err != nil {
 		return nil, nil, "", fmt.Errorf("signing DRD: %w", err)
@@ -411,12 +548,12 @@ func (hp *HomePeer) computeDRD(ctx context.Context, dr *model.DirectRelations, d
 	return drd, drdData, drdAddr, nil
 }
 
-// publishDRD computes and caches the DRD, then publishes it to the DHT.
-// Step 1: produce and cache the DRD (via computeDRD).
-// Step 2: announce the DRD content address (/drd-data/<drd-addr>).
-// Step 3: store the DHT pointer ("drd", dr-content-address) → (drd-content-address, timestamp).
+// publishDRD computes and caches the DRD, then publishes both the DRD header and the
+// dependency bundle to the DHT.
+// Step 1: produce and cache the DRD header and dependency bundle (via computeDRD).
+// Step 2: announce the DRD content address (/drd-data/<drd-addr>) and bundle (/dep/<bundle-addr>).
+// Step 3: store the DHT pointer /drd/<dr-content-address> → DRDPointer.
 func (hp *HomePeer) publishDRD(ctx context.Context, hu *homedUser, dr *model.DirectRelations, drAddr string) {
-	// Step 1: produce and cache.
 	drd, drdData, drdAddr, err := hp.computeDRD(ctx, dr, drAddr)
 	if err != nil {
 		log.Printf("computing DRD for %s: %v", dr.UserID, err)
@@ -433,12 +570,21 @@ func (hp *HomePeer) publishDRD(ctx context.Context, hu *homedUser, dr *model.Dir
 	pubCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	// Step 2: announce content address availability.
+	// Step 2: announce DRD header content.
 	if err := hp.dht.PutValue(pubCtx, "/drd-data/"+drdAddr, drdData); err != nil {
 		log.Printf("publishing DRD content for %s: %v", dr.UserID, err)
 	}
 
-	// Step 3: store DHT pointer ("drd", dr-content-address) → (drd-content-address, timestamp).
+	// Step 2: announce dependency bundle content.
+	if drd.DependenciesContentAddress != "" {
+		if bundleData, _ := hp.store.Get(drd.DependenciesContentAddress); bundleData != nil {
+			if err := hp.dht.PutValue(pubCtx, "/dep/"+drd.DependenciesContentAddress, bundleData); err != nil {
+				log.Printf("publishing dep bundle for %s: %v", dr.UserID, err)
+			}
+		}
+	}
+
+	// Step 3: store DHT pointer /drd/<dr-addr> → DRDPointer.
 	ptr := model.DRDPointer{
 		DRContentAddress:  drAddr,
 		DRDContentAddress: drdAddr,
@@ -454,14 +600,15 @@ func (hp *HomePeer) publishDRD(ctx context.Context, hu *homedUser, dr *model.Dir
 // signDRD signs a DirectRelationsDependencies document with the home peer's key.
 func (hp *HomePeer) signDRD(drd *model.DirectRelationsDependencies) error {
 	payload := map[string]any{
-		"version":            drd.Version,
-		"user_id":            drd.UserID,
-		"dr_content_address": drd.DRContentAddress,
-		"hops":               drd.Hops,
-		"sources":            drd.Sources,
-		"source_timestamp":   drd.SourceTimestamp,
-		"computed_at":        drd.ComputedAt,
-		"peer_id":            drd.PeerID,
+		"version":                      drd.Version,
+		"user_id":                      drd.UserID,
+		"dr_content_address":           drd.DRContentAddress,
+		"hops":                         drd.Hops,
+		"sources":                      drd.Sources,
+		"dependencies_content_address": drd.DependenciesContentAddress,
+		"source_timestamp":             drd.SourceTimestamp,
+		"computed_at":                  drd.ComputedAt,
+		"peer_id":                      drd.PeerID,
 	}
 	canonical, err := canonicaljson.Marshal(payload)
 	if err != nil {
@@ -538,7 +685,7 @@ func (hp *HomePeer) runCycle(ctx context.Context) {
 		case <-ticker.C:
 			hp.mu.RLock()
 			type userSnapshot struct {
-				hu    *homedUser
+				hu     *homedUser
 				drAddr string
 			}
 			var snapshots []userSnapshot

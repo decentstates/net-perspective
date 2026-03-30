@@ -58,6 +58,7 @@ func main() {
 		"dr-data":  validator.DRDataValidator{},
 		"drd":      validator.DRDPointerValidator{},
 		"drd-data": validator.DRDDataValidator{},
+		"dep":      validator.DepDataValidator{},
 	}
 	ctx := context.Background()
 	d, err := dht.New(ctx, h,

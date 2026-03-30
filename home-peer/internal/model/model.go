@@ -98,13 +98,14 @@ type DRDPointer struct {
 // DHT pointer:  /drd/<dr-content-addr>    → DRDPointer
 // DHT content:  /drd-data/<content-addr>  → raw bytes
 type DirectRelationsDependencies struct {
-	Version          int             `json:"version"`
-	UserID           string          `json:"user_id"`
-	DRContentAddress string          `json:"dr_content_address"`
-	Hops             HopDependencies `json:"hops"`
-	Sources          []string        `json:"sources"`         // content addresses of remote DRDs consumed
-	SourceTimestamp  int64           `json:"source_timestamp"`
-	ComputedAt       int64           `json:"computed_at"`
-	PeerID           string          `json:"peer_id"`
-	Signature        string          `json:"signature"`
+	Version                    int             `json:"version"`
+	UserID                     string          `json:"user_id"`
+	DRContentAddress           string          `json:"dr_content_address"`
+	Hops                       HopDependencies `json:"hops"`
+	Sources                    []string        `json:"sources"`                      // content addresses of remote DRDs consumed
+	DependenciesContentAddress string          `json:"dependencies_content_address"` // content address of gzip dependency bundle
+	SourceTimestamp            int64           `json:"source_timestamp"`
+	ComputedAt                 int64           `json:"computed_at"`
+	PeerID                     string          `json:"peer_id"`
+	Signature                  string          `json:"signature"`
 }
