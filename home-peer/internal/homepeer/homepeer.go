@@ -86,53 +86,29 @@ func (hp *HomePeer) Publish(dr *model.DirectRelations) error {
 	return nil
 }
 
-// Feed returns all DirectRelations for a homed user's full dependency set,
-// fetching the current state from the DHT.
-func (hp *HomePeer) Feed(ctx context.Context, userID string) ([]*model.DirectRelations, error) {
+// Feed returns the pre-built dependency bundle for a homed user as a decompressed
+// slice of DirectRelations, fetching the current state from the DHT.
+func (hp *HomePeer) Feed(ctx context.Context, userID string) ([]model.DirectRelations, error) {
 	if _, ok := hp.users[userID]; !ok {
 		return nil, ErrNotHomed
 	}
 
-	dr, drAddr := hp.fetchDRForUser(ctx, userID)
-	feed := []*model.DirectRelations{}
-	if dr != nil {
-		feed = append(feed, dr)
-	}
+	_, drAddr := hp.fetchDRForUser(ctx, userID)
 	if drAddr == "" {
-		return feed, nil
+		return nil, nil
 	}
 
 	drd, err := hp.fetchDRD(ctx, drAddr)
-	if err != nil || drd == nil {
-		return feed, nil
+	if err != nil || drd == nil || drd.DependenciesContentAddress == "" {
+		return nil, nil
 	}
 
-	if drd.DependenciesContentAddress != "" {
-		bundleData, err := hp.fetchContent(ctx, "/dep/"+drd.DependenciesContentAddress, drd.DependenciesContentAddress)
-		if err == nil && bundleData != nil {
-			if drs, err := decompressBundle(bundleData); err == nil {
-				for i := range drs {
-					feed = append(feed, &drs[i])
-				}
-				return feed, nil
-			}
-		}
+	bundleData, err := hp.fetchContent(ctx, "/dep/"+drd.DependenciesContentAddress, drd.DependenciesContentAddress)
+	if err != nil || bundleData == nil {
+		return nil, nil
 	}
 
-	// Fallback: fetch each dependency DR individually.
-	seen := map[string]bool{userID: true}
-	for _, uids := range drd.Hops {
-		for _, uid := range uids {
-			if seen[uid] {
-				continue
-			}
-			seen[uid] = true
-			if depDR, _ := hp.fetchDRForUser(ctx, uid); depDR != nil {
-				feed = append(feed, depDR)
-			}
-		}
-	}
-	return feed, nil
+	return decompressBundle(bundleData)
 }
 
 // Deps returns the current DRD header for a homed user, fetching from the DHT.
