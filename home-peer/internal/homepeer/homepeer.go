@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	canonicaljson "github.com/gibson042/canonicaljson-go"
 	dht "github.com/libp2p/go-libp2p-kad-dht"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -25,13 +26,11 @@ const (
 )
 
 // HomedUser holds in-memory state for a registered user.
-// DR and DRPayload are kept in sync: DR is the signed envelope for serving,
-// DRPayload is the parsed inner document for computation.
+// Dependencies is keyed by dot-joined context (e.g. "work.engineering") for fast lookup.
 type HomedUser struct {
-	UserID       peer.ID
-	DR           *model.Envelope                // signed DR envelope
-	DRPayload    *model.DirectRelationsPayload  // parsed from DR.Payload
-	Dependencies map[string]*model.Envelope     // dot-joined context → signed DRD envelope
+	UserID          peer.ID
+	DirectRelations *model.DirectRelations
+	Dependencies    map[string]*model.DirectRelationsDependencies
 }
 
 // HomePeer is the main server struct.
@@ -65,20 +64,12 @@ func New(h host.Host, d *dht.IpfsDHT, s *store.Store, privKey crypto.PrivKey) (*
 		}
 		hu := &HomedUser{
 			UserID:       pid,
-			Dependencies: make(map[string]*model.Envelope),
+			Dependencies: make(map[string]*model.DirectRelationsDependencies),
 		}
-		if drEnv, _ := s.GetDR(uid); drEnv != nil {
-			if payload, err := drEnv.ParseDR(); err == nil {
-				hu.DR = drEnv
-				hu.DRPayload = payload
-			}
-		}
-		if envs, _ := s.GetAllDRDs(uid); envs != nil {
-			for i := range envs {
-				if drdPayload, err := envs[i].ParseDRD(); err == nil {
-					hu.Dependencies[model.ContextDotJoin(drdPayload.Context)] = &envs[i]
-				}
-			}
+		hu.DirectRelations, _ = s.GetDR(uid)
+		drds, _ := s.GetAllDRDs(uid)
+		for _, drd := range drds {
+			hu.Dependencies[model.ContextDotJoin(drd.Context)] = drd
 		}
 		hp.users[uid] = hu
 	}
@@ -99,48 +90,62 @@ func (hp *HomePeer) Handler() http.Handler {
 	return mux
 }
 
-// validateDREnvelope verifies the signature on a DR envelope and returns the parsed payload.
-func validateDREnvelope(env *model.Envelope) (*model.DirectRelationsPayload, error) {
-	dr, err := env.ParseDR()
-	if err != nil {
-		return nil, fmt.Errorf("parsing payload: %w", err)
-	}
+// validateDR checks the signature on a DirectRelations document.
+func validateDR(dr *model.DirectRelations) error {
 	pid, err := peer.Decode(dr.UserID)
 	if err != nil {
-		return nil, fmt.Errorf("invalid user_id: %w", err)
+		return fmt.Errorf("invalid user_id: %w", err)
 	}
 	pubKey, err := pid.ExtractPublicKey()
 	if err != nil {
-		return nil, fmt.Errorf("extracting public key: %w", err)
+		return fmt.Errorf("extracting public key: %w", err)
 	}
-	sigBytes, err := base64.StdEncoding.DecodeString(env.Signature)
+	sigBytes, err := base64.StdEncoding.DecodeString(dr.Signature)
 	if err != nil {
-		return nil, fmt.Errorf("decoding signature: %w", err)
+		return fmt.Errorf("decoding signature: %w", err)
 	}
-	ok, err := pubKey.Verify([]byte(env.Payload), sigBytes)
+	payload := map[string]any{
+		"version":   dr.Version,
+		"user_id":   dr.UserID,
+		"timestamp": dr.Timestamp,
+		"contexts":  dr.Contexts,
+	}
+	canonical, err := canonicaljson.Marshal(payload)
 	if err != nil {
-		return nil, fmt.Errorf("verify: %w", err)
+		return fmt.Errorf("canonical JSON: %w", err)
+	}
+	ok, err := pubKey.Verify(canonical, sigBytes)
+	if err != nil {
+		return fmt.Errorf("verify: %w", err)
 	}
 	if !ok {
-		return nil, fmt.Errorf("signature invalid")
+		return fmt.Errorf("signature invalid")
 	}
-	return dr, nil
+	return nil
 }
 
-// makeDRDEnvelope marshals a DRD payload, signs the raw bytes, and returns the envelope.
-func (hp *HomePeer) makeDRDEnvelope(payload *model.DirectRelationsDependenciesPayload) (model.Envelope, error) {
-	data, err := json.Marshal(payload)
-	if err != nil {
-		return model.Envelope{}, fmt.Errorf("marshaling DRD payload: %w", err)
+// signDRD signs a DirectRelationsDependencies document with the home peer's key.
+func (hp *HomePeer) signDRD(drd *model.DirectRelationsDependencies) error {
+	payload := map[string]any{
+		"version":          drd.Version,
+		"user_id":          drd.UserID,
+		"context":          drd.Context,
+		"hops":             drd.Hops,
+		"sources":          drd.Sources,
+		"source_timestamp": drd.SourceTimestamp,
+		"computed_at":      drd.ComputedAt,
+		"peer_id":          drd.PeerID,
 	}
-	sig, err := hp.privKey.Sign(data)
+	canonical, err := canonicaljson.Marshal(payload)
 	if err != nil {
-		return model.Envelope{}, fmt.Errorf("signing: %w", err)
+		return fmt.Errorf("canonical JSON: %w", err)
 	}
-	return model.Envelope{
-		Payload:   string(data),
-		Signature: base64.StdEncoding.EncodeToString(sig),
-	}, nil
+	sig, err := hp.privKey.Sign(canonical)
+	if err != nil {
+		return fmt.Errorf("signing: %w", err)
+	}
+	drd.Signature = base64.StdEncoding.EncodeToString(sig)
+	return nil
 }
 
 func writeJSON(w http.ResponseWriter, code int, v any) {
@@ -154,13 +159,12 @@ func writeError(w http.ResponseWriter, code int, msg string) {
 }
 
 func (hp *HomePeer) handleRegister(w http.ResponseWriter, r *http.Request) {
-	var env model.Envelope
-	if err := json.NewDecoder(r.Body).Decode(&env); err != nil {
+	var dr model.DirectRelations
+	if err := json.NewDecoder(r.Body).Decode(&dr); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
 		return
 	}
-	dr, err := validateDREnvelope(&env)
-	if err != nil {
+	if err := validateDR(&dr); err != nil {
 		writeError(w, http.StatusBadRequest, "signature validation failed: "+err.Error())
 		return
 	}
@@ -176,23 +180,26 @@ func (hp *HomePeer) handleRegister(w http.ResponseWriter, r *http.Request) {
 	}
 
 	hu := &HomedUser{
-		UserID:       pid,
-		DR:           &env,
-		DRPayload:    dr,
-		Dependencies: make(map[string]*model.Envelope),
+		UserID:          pid,
+		DirectRelations: &dr,
+		Dependencies:    make(map[string]*model.DirectRelationsDependencies),
 	}
 	hp.users[dr.UserID] = hu
 
-	if err := hp.store.PutDR(dr.UserID, env); err != nil {
+	if err := hp.store.PutDR(dr.UserID, &dr); err != nil {
 		writeError(w, http.StatusInternalServerError, "storing DR: "+err.Error())
 		return
 	}
-	if err := hp.store.PutCache(dr.UserID, env); err != nil {
+	if err := hp.store.PutCache(dr.UserID, &dr); err != nil {
 		writeError(w, http.StatusInternalServerError, "storing cache: "+err.Error())
 		return
 	}
+	if err := hp.store.AddUser(dr.UserID); err != nil {
+		writeError(w, http.StatusInternalServerError, "storing user list: "+err.Error())
+		return
+	}
 
-	go hp.publishDR(dr.UserID, env)
+	go hp.publishDR(dr.UserID, &dr)
 	go hp.computeAndPublishDeps(context.Background(), hu)
 
 	writeJSON(w, http.StatusCreated, map[string]string{"status": "registered", "user_id": dr.UserID})
@@ -201,18 +208,17 @@ func (hp *HomePeer) handleRegister(w http.ResponseWriter, r *http.Request) {
 func (hp *HomePeer) handlePublish(w http.ResponseWriter, r *http.Request) {
 	userID := r.PathValue("userid")
 
-	var env model.Envelope
-	if err := json.NewDecoder(r.Body).Decode(&env); err != nil {
+	var dr model.DirectRelations
+	if err := json.NewDecoder(r.Body).Decode(&dr); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
-		return
-	}
-	dr, err := validateDREnvelope(&env)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "signature validation failed: "+err.Error())
 		return
 	}
 	if dr.UserID != userID {
 		writeError(w, http.StatusBadRequest, "user_id mismatch")
+		return
+	}
+	if err := validateDR(&dr); err != nil {
+		writeError(w, http.StatusBadRequest, "signature validation failed: "+err.Error())
 		return
 	}
 
@@ -223,26 +229,25 @@ func (hp *HomePeer) handlePublish(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "user not registered")
 		return
 	}
-	hu.DR = &env
-	hu.DRPayload = dr
+	hu.DirectRelations = &dr
 	hp.mu.Unlock()
 
-	if err := hp.store.PutDR(userID, env); err != nil {
+	if err := hp.store.PutDR(userID, &dr); err != nil {
 		writeError(w, http.StatusInternalServerError, "storing DR: "+err.Error())
 		return
 	}
-	if err := hp.store.PutCache(userID, env); err != nil {
+	if err := hp.store.PutCache(userID, &dr); err != nil {
 		writeError(w, http.StatusInternalServerError, "storing cache: "+err.Error())
 		return
 	}
 
-	go hp.publishDR(userID, env)
+	go hp.publishDR(userID, &dr)
 	go hp.computeAndPublishDeps(context.Background(), hu)
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": "published", "user_id": userID})
 }
 
-// handleFeed returns signed DR envelopes for the user and their full dependency set.
+// handleFeed returns all cached direct-relations for a user's full dependency set.
 func (hp *HomePeer) handleFeed(w http.ResponseWriter, r *http.Request) {
 	userID := r.PathValue("userid")
 
@@ -255,26 +260,22 @@ func (hp *HomePeer) handleFeed(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var feed []model.Envelope
-	if hu.DR != nil {
-		feed = append(feed, *hu.DR)
+	feed := []*model.DirectRelations{}
+	if hu.DirectRelations != nil {
+		feed = append(feed, hu.DirectRelations)
 	}
 
 	seen := map[string]bool{userID: true}
-	for _, drdEnv := range hu.Dependencies {
-		drd, err := drdEnv.ParseDRD()
-		if err != nil {
-			continue
-		}
+	for _, drd := range hu.Dependencies {
 		for _, uids := range drd.Hops {
 			for _, uid := range uids {
 				if seen[uid] {
 					continue
 				}
 				seen[uid] = true
-				env, _ := hp.store.GetCache(uid)
-				if env != nil {
-					feed = append(feed, *env)
+				dr, _ := hp.store.GetCache(uid)
+				if dr != nil {
+					feed = append(feed, dr)
 				}
 			}
 		}
@@ -283,7 +284,6 @@ func (hp *HomePeer) handleFeed(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, feed)
 }
 
-// handleDeps returns all signed DRD envelopes for a user (one per context).
 func (hp *HomePeer) handleDeps(w http.ResponseWriter, r *http.Request) {
 	userID := r.PathValue("userid")
 
@@ -295,27 +295,25 @@ func (hp *HomePeer) handleDeps(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "user not registered")
 		return
 	}
-
-	drds := make([]model.Envelope, 0, len(hu.Dependencies))
-	for _, env := range hu.Dependencies {
-		drds = append(drds, *env)
+	drds := make([]*model.DirectRelationsDependencies, 0, len(hu.Dependencies))
+	for _, drd := range hu.Dependencies {
+		drds = append(drds, drd)
 	}
 	writeJSON(w, http.StatusOK, drds)
 }
 
-// handleGetDR returns the cached signed DR envelope for any user.
 func (hp *HomePeer) handleGetDR(w http.ResponseWriter, r *http.Request) {
 	userID := r.PathValue("userid")
-	env, err := hp.store.GetCache(userID)
+	dr, err := hp.store.GetCache(userID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	if env == nil {
+	if dr == nil {
 		writeError(w, http.StatusNotFound, "not found")
 		return
 	}
-	writeJSON(w, http.StatusOK, env)
+	writeJSON(w, http.StatusOK, dr)
 }
 
 func (hp *HomePeer) handleHealth(w http.ResponseWriter, r *http.Request) {
@@ -332,52 +330,62 @@ func (hp *HomePeer) handleHealth(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (hp *HomePeer) publishDR(userID string, env model.Envelope) {
+func (hp *HomePeer) publishDR(userID string, dr *model.DirectRelations) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	data, _ := json.Marshal(env)
+	data, err := json.Marshal(dr)
+	if err != nil {
+		return
+	}
 	_ = hp.dht.PutValue(ctx, "/dr/"+userID, data)
 }
 
-func (hp *HomePeer) publishDRD(userID string, contextPath []string, env model.Envelope) {
+func (hp *HomePeer) publishDRD(userID string, contextPath []string, drd *model.DirectRelationsDependencies) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	data, _ := json.Marshal(env)
-	_ = hp.dht.PutValue(ctx, "/drd/"+userID+"/"+model.ContextDotJoin(contextPath), data)
+	data, err := json.Marshal(drd)
+	if err != nil {
+		return
+	}
+	key := "/drd/" + userID + "/" + model.ContextDotJoin(contextPath)
+	_ = hp.dht.PutValue(ctx, key, data)
 }
 
-// fetchRemoteDRD fetches a per-context DRD envelope from the DHT. Returns nil if unavailable.
-func (hp *HomePeer) fetchRemoteDRD(ctx context.Context, userID string, contextPath []string) *model.Envelope {
+// fetchRemoteDRD retrieves a per-context DRD from the DHT. Returns nil if unavailable.
+func (hp *HomePeer) fetchRemoteDRD(ctx context.Context, userID string, contextPath []string) *model.DirectRelationsDependencies {
 	key := "/drd/" + userID + "/" + model.ContextDotJoin(contextPath)
 	val, err := hp.dht.GetValue(ctx, key)
 	if err != nil {
 		return nil
 	}
-	var env model.Envelope
-	if err := json.Unmarshal(val, &env); err != nil {
+	var drd model.DirectRelationsDependencies
+	if err := json.Unmarshal(val, &drd); err != nil {
 		return nil
 	}
-	return &env
+	return &drd
 }
 
-// fetchAndCacheDR fetches a DR envelope from the DHT and stores it in the local cache.
+// fetchAndCacheDR fetches a DirectRelations from the DHT and stores it in the local cache.
 func (hp *HomePeer) fetchAndCacheDR(ctx context.Context, userID string) {
 	val, err := hp.dht.GetValue(ctx, "/dr/"+userID)
 	if err != nil {
 		return
 	}
-	var env model.Envelope
-	if err := json.Unmarshal(val, &env); err != nil {
+	var dr model.DirectRelations
+	if err := json.Unmarshal(val, &dr); err != nil {
 		return
 	}
-	_ = hp.store.PutCache(userID, env)
+	_ = hp.store.PutCache(userID, &dr)
 }
 
 // computeAndPublishDeps performs the purely inductive DRD computation for a homed user.
-// One DRD envelope is produced and published per context in the user's DR.
+// One DRD is produced and published per context in the user's DirectRelations.
+// Hop 1 is read from the user's signed DR; hops 2–6 are composed exclusively from
+// the signed DRDs of hop-1 users fetched at /drd/<user-id>/<context>.
+// There is no fallback to direct DR traversal.
 func (hp *HomePeer) computeAndPublishDeps(ctx context.Context, hu *HomedUser) {
 	hp.mu.RLock()
-	dr := hu.DRPayload
+	dr := hu.DirectRelations
 	hp.mu.RUnlock()
 
 	if dr == nil {
@@ -426,20 +434,17 @@ func (hp *HomePeer) computeAndPublishDeps(ctx context.Context, hu *HomedUser) {
 			visited[uid] = true
 		}
 
-		// Hops 2–6: fetch the DRD for each hop-1 target and shift hop indices by 1.
+		// Hops 2–6: fetch the DRD for each hop-1 target at
+		// /drd/<user-id>/<dot-joined-target-context> and shift hop indices by 1.
 		sources := []string{}
 		seenSources := map[string]bool{}
 
 		for _, t := range hop1 {
 			fetchCtx, cancel := context.WithTimeout(ctx, dhtTimeout)
-			remoteDRDEnv := hp.fetchRemoteDRD(fetchCtx, t.userID, t.targetContext)
+			remoteDRD := hp.fetchRemoteDRD(fetchCtx, t.userID, t.targetContext)
 			cancel()
 
-			if remoteDRDEnv == nil {
-				continue
-			}
-			remoteDRD, err := remoteDRDEnv.ParseDRD()
-			if err != nil {
+			if remoteDRD == nil {
 				continue
 			}
 
@@ -462,7 +467,7 @@ func (hp *HomePeer) computeAndPublishDeps(ctx context.Context, hu *HomedUser) {
 			}
 		}
 
-		payload := &model.DirectRelationsDependenciesPayload{
+		drd := &model.DirectRelationsDependencies{
 			Version:         1,
 			UserID:          userIDStr,
 			Context:         ctxEntry.Path,
@@ -473,8 +478,7 @@ func (hp *HomePeer) computeAndPublishDeps(ctx context.Context, hu *HomedUser) {
 			PeerID:          hp.host.ID().String(),
 		}
 
-		env, err := hp.makeDRDEnvelope(payload)
-		if err != nil {
+		if err := hp.signDRD(drd); err != nil {
 			log.Printf("signing DRD for %s context %v: %v", userIDStr, ctxEntry.Path, err)
 			continue
 		}
@@ -482,17 +486,17 @@ func (hp *HomePeer) computeAndPublishDeps(ctx context.Context, hu *HomedUser) {
 		ctxKey := model.ContextDotJoin(ctxEntry.Path)
 
 		hp.mu.Lock()
-		hu.Dependencies[ctxKey] = &env
+		hu.Dependencies[ctxKey] = drd
 		hp.mu.Unlock()
 
-		if err := hp.store.PutDRD(userIDStr, ctxEntry.Path, env); err != nil {
+		if err := hp.store.PutDRD(userIDStr, ctxEntry.Path, drd); err != nil {
 			log.Printf("storing DRD for %s context %v: %v", userIDStr, ctxEntry.Path, err)
 		}
 
-		go hp.publishDRD(userIDStr, ctxEntry.Path, env)
+		go hp.publishDRD(userIDStr, ctxEntry.Path, drd)
 	}
 
-	// Cache the DR envelope for every user in the dependency set.
+	// Cache the DR for every user in the full dependency set.
 	for uid := range allDepUIDs {
 		existing, _ := hp.store.GetCache(uid)
 		if existing == nil {
@@ -503,7 +507,7 @@ func (hp *HomePeer) computeAndPublishDeps(ctx context.Context, hu *HomedUser) {
 	}
 }
 
-// runCycle recomputes deps for all homed users every 10 minutes.
+// runCycle runs the dependency computation cycle every 10 minutes.
 func (hp *HomePeer) runCycle(ctx context.Context) {
 	ticker := time.NewTicker(cycleInterval)
 	defer ticker.Stop()
@@ -518,6 +522,7 @@ func (hp *HomePeer) runCycle(ctx context.Context) {
 				users = append(users, hu)
 			}
 			hp.mu.RUnlock()
+
 			for _, hu := range users {
 				hp.computeAndPublishDeps(ctx, hu)
 			}

@@ -1,7 +1,6 @@
 package model
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 )
@@ -19,7 +18,9 @@ func ValidateContextPath(path []string) error {
 		for j, r := range elem {
 			switch {
 			case r >= 'a' && r <= 'z':
+				// ok
 			case r == '-':
+				// ok
 			case r >= '0' && r <= '9':
 				if j == 0 {
 					return fmt.Errorf("element %d %q: must not start with a digit", i, elem)
@@ -33,36 +34,10 @@ func ValidateContextPath(path []string) error {
 }
 
 // ContextDotJoin joins a context path with dots. Unambiguous because element
-// characters exclude dots. Used for DHT keys and storage keys only.
+// characters exclude dots. Used for DHT keys and local storage keys only —
+// never stored in document data.
 func ContextDotJoin(path []string) string {
 	return strings.Join(path, ".")
-}
-
-// Envelope is the signed wire format for all documents.
-// The signature is an Ed25519 signature over the raw bytes of Payload.
-// No canonical JSON is required: the signer marshals the payload struct
-// once with encoding/json and signs those exact bytes.
-type Envelope struct {
-	Payload   string `json:"payload"`   // raw JSON of the inner document
-	Signature string `json:"signature"` // base64 Ed25519 signature over Payload bytes
-}
-
-// ParseDR unmarshals the payload of a DirectRelations envelope.
-func (e *Envelope) ParseDR() (*DirectRelationsPayload, error) {
-	var p DirectRelationsPayload
-	if err := json.Unmarshal([]byte(e.Payload), &p); err != nil {
-		return nil, err
-	}
-	return &p, nil
-}
-
-// ParseDRD unmarshals the payload of a DirectRelationsDependencies envelope.
-func (e *Envelope) ParseDRD() (*DirectRelationsDependenciesPayload, error) {
-	var p DirectRelationsDependenciesPayload
-	if err := json.Unmarshal([]byte(e.Payload), &p); err != nil {
-		return nil, err
-	}
-	return &p, nil
 }
 
 // Relation represents a single relation (link or leaf).
@@ -80,26 +55,30 @@ type ContextEntry struct {
 	Relations []Relation `json:"relations"`
 }
 
-// DirectRelationsPayload is the inner content of a signed DirectRelations document.
-type DirectRelationsPayload struct {
+// DirectRelations is the primary document stored per user in the DHT.
+// DHT key: /dr/<peer-id-string>
+type DirectRelations struct {
 	Version   int            `json:"version"`
 	UserID    string         `json:"user_id"`
 	Timestamp int64          `json:"timestamp"`
 	Contexts  []ContextEntry `json:"contexts"`
+	Signature string         `json:"signature"`
 }
 
 // HopDependencies maps hop number ("1"–"6") to the list of user peer IDs at that depth.
 type HopDependencies map[string][]string
 
-// DirectRelationsDependenciesPayload is the inner content of a signed DRD document.
+// DirectRelationsDependencies is a per-(user, context) document signed by the home peer.
 // One document is produced per context in the user's DirectRelations.
-type DirectRelationsDependenciesPayload struct {
+// DHT key: /drd/<peer-id-string>/<dot-joined-context>
+type DirectRelationsDependencies struct {
 	Version         int             `json:"version"`
 	UserID          string          `json:"user_id"`
-	Context         []string        `json:"context"`
-	Hops            HopDependencies `json:"hops"`
-	Sources         []string        `json:"sources"`
-	SourceTimestamp int64           `json:"source_timestamp"`
+	Context         []string        `json:"context"`          // the specific context this DRD covers
+	Hops            HopDependencies `json:"hops"`             // hop number → peer IDs
+	Sources         []string        `json:"sources"`          // DHT keys of remote DRDs consumed
+	SourceTimestamp int64           `json:"source_timestamp"` // timestamp of the DR this was derived from
 	ComputedAt      int64           `json:"computed_at"`
 	PeerID          string          `json:"peer_id"`
+	Signature       string          `json:"signature"`
 }

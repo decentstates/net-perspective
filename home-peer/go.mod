@@ -3,6 +3,7 @@ module github.com/net-perspective/home-peer
 go 1.25.7
 
 require (
+	github.com/gibson042/canonicaljson-go v1.0.3
 	github.com/libp2p/go-libp2p v0.48.0
 	github.com/libp2p/go-libp2p-kad-dht v0.39.0
 	github.com/libp2p/go-libp2p-record v0.3.1
