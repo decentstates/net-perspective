@@ -18,6 +18,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	record "github.com/libp2p/go-libp2p-record"
 	"github.com/multiformats/go-multiaddr"
+	"github.com/net-perspective/home-peer/internal/api"
 	"github.com/net-perspective/home-peer/internal/homepeer"
 	"github.com/net-perspective/home-peer/internal/identity"
 	"github.com/net-perspective/home-peer/internal/store"
@@ -30,6 +31,7 @@ func main() {
 	bootstrapFlag := flag.String("bootstrap", "", "Comma-separated bootstrap peer multiaddrs")
 	httpAddr := flag.String("http-addr", "", "Enable home peer HTTP API on this address (e.g. :8080)")
 	dataDir := flag.String("data-dir", "peer-data", "Data directory for home peer storage (used with --http-addr)")
+	usersFlag := flag.String("users", "", "Comma-separated peer IDs of homed users (used with --http-addr)")
 	flag.Parse()
 
 	// --- Identity ---
@@ -69,7 +71,7 @@ func main() {
 	}
 
 	// --- Connect to bootstrap peers ---
-	for _, addrStr := range splitAddrs(*bootstrapFlag) {
+	for _, addrStr := range splitComma(*bootstrapFlag) {
 		bma, err := multiaddr.NewMultiaddr(addrStr)
 		if err != nil {
 			log.Printf("Invalid bootstrap addr %s: %v", addrStr, err)
@@ -105,18 +107,23 @@ func main() {
 
 	// --- Home peer HTTP API (optional) ---
 	if *httpAddr != "" {
+		userIDs := parseUserIDs(*usersFlag)
+		if len(userIDs) == 0 {
+			log.Println("Warning: --http-addr set but no --users provided; no users will be homed")
+		}
+
 		s, err := store.Open(*dataDir)
 		if err != nil {
 			log.Fatalf("Opening store at %s: %v", *dataDir, err)
 		}
 		defer s.Close()
 
-		hp, err := homepeer.New(h, d, s, privKey)
+		hp, err := homepeer.New(h, d, s, privKey, userIDs)
 		if err != nil {
 			log.Fatalf("Creating home peer: %v", err)
 		}
 
-		srv := &http.Server{Addr: *httpAddr, Handler: hp.Handler()}
+		srv := &http.Server{Addr: *httpAddr, Handler: api.NewServer(hp).Handler()}
 		go func() {
 			log.Printf("HTTP API listening on %s", *httpAddr)
 			if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -133,7 +140,7 @@ func main() {
 	log.Println("Shutting down...")
 }
 
-func splitAddrs(s string) []string {
+func splitComma(s string) []string {
 	var out []string
 	for _, a := range strings.Split(s, ",") {
 		a = strings.TrimSpace(a)
@@ -142,6 +149,19 @@ func splitAddrs(s string) []string {
 		}
 	}
 	return out
+}
+
+func parseUserIDs(s string) []peer.ID {
+	var ids []peer.ID
+	for _, uid := range splitComma(s) {
+		pid, err := peer.Decode(uid)
+		if err != nil {
+			log.Printf("Invalid user peer ID %s: %v (skipping)", uid, err)
+			continue
+		}
+		ids = append(ids, pid)
+	}
+	return ids
 }
 
 func runSubcommand(ctx context.Context, d *dht.IpfsDHT, args []string) {

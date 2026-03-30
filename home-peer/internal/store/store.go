@@ -32,7 +32,7 @@ func Open(root string) (*Store, error) {
 	return &Store{root: root}, nil
 }
 
-// Close is a no-op; present to satisfy the same interface as before.
+// Close is a no-op; present for symmetry with Open.
 func (s *Store) Close() error { return nil }
 
 // PutDR atomically writes a DirectRelations document.
@@ -114,28 +114,6 @@ func (s *Store) GetCache(userID string) (*model.DirectRelations, error) {
 	}
 	return &dr, nil
 }
-
-// GetUsers returns the peer IDs of all homed users by scanning the dr/ directory.
-func (s *Store) GetUsers() ([]string, error) {
-	entries, err := os.ReadDir(filepath.Join(s.root, "dr"))
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	var users []string
-	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
-			continue
-		}
-		users = append(users, strings.TrimSuffix(e.Name(), ".json"))
-	}
-	return users, nil
-}
-
-// AddUser is a no-op: users are discovered via GetUsers by scanning dr/.
-func (s *Store) AddUser(_ string) error { return nil }
 
 // writeJSON marshals v to JSON and atomically writes it to path via a temp file.
 func writeJSON(path string, v any) error {

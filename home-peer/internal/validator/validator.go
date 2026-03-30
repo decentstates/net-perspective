@@ -27,6 +27,48 @@ func validateContextPaths(dr *model.DirectRelations) error {
 	return nil
 }
 
+// ValidateDRSignature verifies the cryptographic signature on a DirectRelations document.
+func ValidateDRSignature(dr *model.DirectRelations) error {
+	pid, err := peer.Decode(dr.UserID)
+	if err != nil {
+		return fmt.Errorf("invalid user_id peer ID: %w", err)
+	}
+	pubKey, err := pid.ExtractPublicKey()
+	if err != nil {
+		return fmt.Errorf("extracting public key from peer ID: %w", err)
+	}
+	sigBytes, err := base64.StdEncoding.DecodeString(dr.Signature)
+	if err != nil {
+		return fmt.Errorf("decoding signature: %w", err)
+	}
+	payload := map[string]any{
+		"version":   dr.Version,
+		"user_id":   dr.UserID,
+		"timestamp": dr.Timestamp,
+		"contexts":  dr.Contexts,
+	}
+	canonical, err := canonicaljson.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("canonical JSON for DR: %w", err)
+	}
+	ok, err := pubKey.Verify(canonical, sigBytes)
+	if err != nil {
+		return fmt.Errorf("signature verification error: %w", err)
+	}
+	if !ok {
+		return fmt.Errorf("signature verification failed")
+	}
+	return nil
+}
+
+// ValidateDR validates context paths and verifies the signature on a DirectRelations document.
+func ValidateDR(dr *model.DirectRelations) error {
+	if err := validateContextPaths(dr); err != nil {
+		return fmt.Errorf("invalid context path: %w", err)
+	}
+	return ValidateDRSignature(dr)
+}
+
 // DRValidator validates DirectRelations records for the /dr/ namespace.
 type DRValidator struct{}
 
@@ -47,45 +89,7 @@ func (DRValidator) Validate(key string, value []byte) error {
 		return fmt.Errorf("user_id %s does not match key %s", dr.UserID, expectedUserID)
 	}
 
-	pid, err := peer.Decode(dr.UserID)
-	if err != nil {
-		return fmt.Errorf("invalid user_id peer ID: %w", err)
-	}
-
-	pubKey, err := pid.ExtractPublicKey()
-	if err != nil {
-		return fmt.Errorf("extracting public key from peer ID: %w", err)
-	}
-
-	sigBytes, err := base64.StdEncoding.DecodeString(dr.Signature)
-	if err != nil {
-		return fmt.Errorf("decoding signature: %w", err)
-	}
-
-	if err := validateContextPaths(&dr); err != nil {
-		return fmt.Errorf("invalid context path: %w", err)
-	}
-
-	payload := map[string]any{
-		"version":   dr.Version,
-		"user_id":   dr.UserID,
-		"timestamp": dr.Timestamp,
-		"contexts":  dr.Contexts,
-	}
-	canonical, err := canonicaljson.Marshal(payload)
-	if err != nil {
-		return fmt.Errorf("canonical JSON for DR: %w", err)
-	}
-
-	ok, err := pubKey.Verify(canonical, sigBytes)
-	if err != nil {
-		return fmt.Errorf("signature verification error: %w", err)
-	}
-	if !ok {
-		return fmt.Errorf("signature verification failed")
-	}
-
-	return nil
+	return ValidateDR(&dr)
 }
 
 func (DRValidator) Select(key string, values [][]byte) (int, error) {

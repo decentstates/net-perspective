@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
-	"net/http"
 	"sync"
 	"time"
 
@@ -17,6 +17,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/net-perspective/home-peer/internal/model"
 	"github.com/net-perspective/home-peer/internal/store"
+	"github.com/net-perspective/home-peer/internal/validator"
 )
 
 const (
@@ -25,51 +26,56 @@ const (
 	dhtTimeout    = 15 * time.Second
 )
 
-// HomedUser holds in-memory state for a registered user.
-// Dependencies is keyed by dot-joined context (e.g. "work.engineering") for fast lookup.
-type HomedUser struct {
-	UserID          peer.ID
-	DirectRelations *model.DirectRelations
-	Dependencies    map[string]*model.DirectRelationsDependencies
+// ErrNotHomed is returned when an operation targets a user not configured on this home peer.
+var ErrNotHomed = errors.New("user not homed")
+
+// homedUser holds in-memory state for a homed user.
+// Dependencies is keyed by dot-joined context for fast lookup.
+type homedUser struct {
+	userID          peer.ID
+	directRelations *model.DirectRelations
+	dependencies    map[string]*model.DirectRelationsDependencies
 }
 
-// HomePeer is the main server struct.
+// HealthInfo holds the peer's current runtime status.
+type HealthInfo struct {
+	PeerID           string   `json:"peer_id"`
+	RoutingTableSize int      `json:"routing_table_size"`
+	NumUsers         int      `json:"num_users"`
+	Addrs            []string `json:"addrs"`
+}
+
+// HomePeer is the core server: manages homed users, computes DRDs, and publishes to the DHT.
 type HomePeer struct {
 	host    host.Host
 	dht     *dht.IpfsDHT
 	store   *store.Store
-	users   map[string]*HomedUser
+	users   map[string]*homedUser
 	mu      sync.RWMutex
 	privKey crypto.PrivKey
 }
 
-// New creates a new HomePeer and starts the background computation cycle.
-func New(h host.Host, d *dht.IpfsDHT, s *store.Store, privKey crypto.PrivKey) (*HomePeer, error) {
+// New creates a HomePeer for the given user IDs, loading any persisted data from the store.
+// It starts the background dependency computation cycle.
+func New(h host.Host, d *dht.IpfsDHT, s *store.Store, privKey crypto.PrivKey, userIDs []peer.ID) (*HomePeer, error) {
 	hp := &HomePeer{
 		host:    h,
 		dht:     d,
 		store:   s,
-		users:   make(map[string]*HomedUser),
+		users:   make(map[string]*homedUser, len(userIDs)),
 		privKey: privKey,
 	}
 
-	userIDs, err := s.GetUsers()
-	if err != nil {
-		return nil, fmt.Errorf("loading users: %w", err)
-	}
-	for _, uid := range userIDs {
-		pid, err := peer.Decode(uid)
-		if err != nil {
-			continue
+	for _, pid := range userIDs {
+		uid := pid.String()
+		hu := &homedUser{
+			userID:       pid,
+			dependencies: make(map[string]*model.DirectRelationsDependencies),
 		}
-		hu := &HomedUser{
-			UserID:       pid,
-			Dependencies: make(map[string]*model.DirectRelationsDependencies),
-		}
-		hu.DirectRelations, _ = s.GetDR(uid)
+		hu.directRelations, _ = s.GetDR(uid)
 		drds, _ := s.GetAllDRDs(uid)
 		for _, drd := range drds {
-			hu.Dependencies[model.ContextDotJoin(drd.Context)] = drd
+			hu.dependencies[model.ContextDotJoin(drd.Context)] = drd
 		}
 		hp.users[uid] = hu
 	}
@@ -78,50 +84,103 @@ func New(h host.Host, d *dht.IpfsDHT, s *store.Store, privKey crypto.PrivKey) (*
 	return hp, nil
 }
 
-// Handler returns an http.Handler with all routes registered.
-func (hp *HomePeer) Handler() http.Handler {
-	mux := http.NewServeMux()
-	mux.HandleFunc("POST /users/register", hp.handleRegister)
-	mux.HandleFunc("POST /users/{userid}/publish", hp.handlePublish)
-	mux.HandleFunc("GET /users/{userid}/feed", hp.handleFeed)
-	mux.HandleFunc("GET /users/{userid}/deps", hp.handleDeps)
-	mux.HandleFunc("GET /direct-relations/{userid}", hp.handleGetDR)
-	mux.HandleFunc("GET /health", hp.handleHealth)
-	return mux
+// Publish stores and publishes a new DirectRelations for a homed user.
+// Returns ErrNotHomed if the user was not configured at startup.
+func (hp *HomePeer) Publish(dr *model.DirectRelations) error {
+	if err := validator.ValidateDR(dr); err != nil {
+		return fmt.Errorf("validation: %w", err)
+	}
+
+	hp.mu.Lock()
+	hu, exists := hp.users[dr.UserID]
+	if !exists {
+		hp.mu.Unlock()
+		return ErrNotHomed
+	}
+	hu.directRelations = dr
+	hp.mu.Unlock()
+
+	if err := hp.store.PutDR(dr.UserID, dr); err != nil {
+		return fmt.Errorf("storing DR: %w", err)
+	}
+	if err := hp.store.PutCache(dr.UserID, dr); err != nil {
+		return fmt.Errorf("storing cache: %w", err)
+	}
+
+	go hp.publishDR(dr.UserID, dr)
+	go hp.computeAndPublishDeps(context.Background(), hu)
+	return nil
 }
 
-// validateDR checks the signature on a DirectRelations document.
-func validateDR(dr *model.DirectRelations) error {
-	pid, err := peer.Decode(dr.UserID)
-	if err != nil {
-		return fmt.Errorf("invalid user_id: %w", err)
+// Feed returns all cached DirectRelations for the full dependency set of a homed user.
+func (hp *HomePeer) Feed(userID string) ([]*model.DirectRelations, error) {
+	hp.mu.RLock()
+	hu, exists := hp.users[userID]
+	hp.mu.RUnlock()
+	if !exists {
+		return nil, ErrNotHomed
 	}
-	pubKey, err := pid.ExtractPublicKey()
-	if err != nil {
-		return fmt.Errorf("extracting public key: %w", err)
+
+	feed := []*model.DirectRelations{}
+	if hu.directRelations != nil {
+		feed = append(feed, hu.directRelations)
 	}
-	sigBytes, err := base64.StdEncoding.DecodeString(dr.Signature)
-	if err != nil {
-		return fmt.Errorf("decoding signature: %w", err)
+
+	seen := map[string]bool{userID: true}
+	for _, drd := range hu.dependencies {
+		for _, uids := range drd.Hops {
+			for _, uid := range uids {
+				if seen[uid] {
+					continue
+				}
+				seen[uid] = true
+				dr, _ := hp.store.GetCache(uid)
+				if dr != nil {
+					feed = append(feed, dr)
+				}
+			}
+		}
 	}
-	payload := map[string]any{
-		"version":   dr.Version,
-		"user_id":   dr.UserID,
-		"timestamp": dr.Timestamp,
-		"contexts":  dr.Contexts,
+	return feed, nil
+}
+
+// Deps returns all computed DRDs for a homed user.
+func (hp *HomePeer) Deps(userID string) ([]*model.DirectRelationsDependencies, error) {
+	hp.mu.RLock()
+	hu, exists := hp.users[userID]
+	hp.mu.RUnlock()
+	if !exists {
+		return nil, ErrNotHomed
 	}
-	canonical, err := canonicaljson.Marshal(payload)
-	if err != nil {
-		return fmt.Errorf("canonical JSON: %w", err)
+	drds := make([]*model.DirectRelationsDependencies, 0, len(hu.dependencies))
+	for _, drd := range hu.dependencies {
+		drds = append(drds, drd)
 	}
-	ok, err := pubKey.Verify(canonical, sigBytes)
-	if err != nil {
-		return fmt.Errorf("verify: %w", err)
+	return drds, nil
+}
+
+// CachedDR returns a cached DirectRelations by peer ID (any user, not just homed).
+func (hp *HomePeer) CachedDR(userID string) (*model.DirectRelations, error) {
+	return hp.store.GetCache(userID)
+}
+
+// Health returns the peer's current runtime status.
+func (hp *HomePeer) Health() HealthInfo {
+	hp.mu.RLock()
+	numUsers := len(hp.users)
+	hp.mu.RUnlock()
+
+	rt := hp.dht.RoutingTable()
+	addrs := make([]string, len(hp.host.Addrs()))
+	for i, a := range hp.host.Addrs() {
+		addrs[i] = a.String()
 	}
-	if !ok {
-		return fmt.Errorf("signature invalid")
+	return HealthInfo{
+		PeerID:           hp.host.ID().String(),
+		RoutingTableSize: rt.Size(),
+		NumUsers:         numUsers,
+		Addrs:            addrs,
 	}
-	return nil
 }
 
 // signDRD signs a DirectRelationsDependencies document with the home peer's key.
@@ -146,188 +205,6 @@ func (hp *HomePeer) signDRD(drd *model.DirectRelationsDependencies) error {
 	}
 	drd.Signature = base64.StdEncoding.EncodeToString(sig)
 	return nil
-}
-
-func writeJSON(w http.ResponseWriter, code int, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(code)
-	_ = json.NewEncoder(w).Encode(v)
-}
-
-func writeError(w http.ResponseWriter, code int, msg string) {
-	writeJSON(w, code, map[string]string{"error": msg})
-}
-
-func (hp *HomePeer) handleRegister(w http.ResponseWriter, r *http.Request) {
-	var dr model.DirectRelations
-	if err := json.NewDecoder(r.Body).Decode(&dr); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
-		return
-	}
-	if err := validateDR(&dr); err != nil {
-		writeError(w, http.StatusBadRequest, "signature validation failed: "+err.Error())
-		return
-	}
-
-	pid, _ := peer.Decode(dr.UserID)
-
-	hp.mu.Lock()
-	defer hp.mu.Unlock()
-
-	if _, exists := hp.users[dr.UserID]; exists {
-		writeError(w, http.StatusConflict, "user already registered")
-		return
-	}
-
-	hu := &HomedUser{
-		UserID:          pid,
-		DirectRelations: &dr,
-		Dependencies:    make(map[string]*model.DirectRelationsDependencies),
-	}
-	hp.users[dr.UserID] = hu
-
-	if err := hp.store.PutDR(dr.UserID, &dr); err != nil {
-		writeError(w, http.StatusInternalServerError, "storing DR: "+err.Error())
-		return
-	}
-	if err := hp.store.PutCache(dr.UserID, &dr); err != nil {
-		writeError(w, http.StatusInternalServerError, "storing cache: "+err.Error())
-		return
-	}
-	if err := hp.store.AddUser(dr.UserID); err != nil {
-		writeError(w, http.StatusInternalServerError, "storing user list: "+err.Error())
-		return
-	}
-
-	go hp.publishDR(dr.UserID, &dr)
-	go hp.computeAndPublishDeps(context.Background(), hu)
-
-	writeJSON(w, http.StatusCreated, map[string]string{"status": "registered", "user_id": dr.UserID})
-}
-
-func (hp *HomePeer) handlePublish(w http.ResponseWriter, r *http.Request) {
-	userID := r.PathValue("userid")
-
-	var dr model.DirectRelations
-	if err := json.NewDecoder(r.Body).Decode(&dr); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
-		return
-	}
-	if dr.UserID != userID {
-		writeError(w, http.StatusBadRequest, "user_id mismatch")
-		return
-	}
-	if err := validateDR(&dr); err != nil {
-		writeError(w, http.StatusBadRequest, "signature validation failed: "+err.Error())
-		return
-	}
-
-	hp.mu.Lock()
-	hu, exists := hp.users[userID]
-	if !exists {
-		hp.mu.Unlock()
-		writeError(w, http.StatusNotFound, "user not registered")
-		return
-	}
-	hu.DirectRelations = &dr
-	hp.mu.Unlock()
-
-	if err := hp.store.PutDR(userID, &dr); err != nil {
-		writeError(w, http.StatusInternalServerError, "storing DR: "+err.Error())
-		return
-	}
-	if err := hp.store.PutCache(userID, &dr); err != nil {
-		writeError(w, http.StatusInternalServerError, "storing cache: "+err.Error())
-		return
-	}
-
-	go hp.publishDR(userID, &dr)
-	go hp.computeAndPublishDeps(context.Background(), hu)
-
-	writeJSON(w, http.StatusOK, map[string]string{"status": "published", "user_id": userID})
-}
-
-// handleFeed returns all cached direct-relations for a user's full dependency set.
-func (hp *HomePeer) handleFeed(w http.ResponseWriter, r *http.Request) {
-	userID := r.PathValue("userid")
-
-	hp.mu.RLock()
-	hu, exists := hp.users[userID]
-	hp.mu.RUnlock()
-
-	if !exists {
-		writeError(w, http.StatusNotFound, "user not registered")
-		return
-	}
-
-	feed := []*model.DirectRelations{}
-	if hu.DirectRelations != nil {
-		feed = append(feed, hu.DirectRelations)
-	}
-
-	seen := map[string]bool{userID: true}
-	for _, drd := range hu.Dependencies {
-		for _, uids := range drd.Hops {
-			for _, uid := range uids {
-				if seen[uid] {
-					continue
-				}
-				seen[uid] = true
-				dr, _ := hp.store.GetCache(uid)
-				if dr != nil {
-					feed = append(feed, dr)
-				}
-			}
-		}
-	}
-
-	writeJSON(w, http.StatusOK, feed)
-}
-
-func (hp *HomePeer) handleDeps(w http.ResponseWriter, r *http.Request) {
-	userID := r.PathValue("userid")
-
-	hp.mu.RLock()
-	hu, exists := hp.users[userID]
-	hp.mu.RUnlock()
-
-	if !exists {
-		writeError(w, http.StatusNotFound, "user not registered")
-		return
-	}
-	drds := make([]*model.DirectRelationsDependencies, 0, len(hu.Dependencies))
-	for _, drd := range hu.Dependencies {
-		drds = append(drds, drd)
-	}
-	writeJSON(w, http.StatusOK, drds)
-}
-
-func (hp *HomePeer) handleGetDR(w http.ResponseWriter, r *http.Request) {
-	userID := r.PathValue("userid")
-	dr, err := hp.store.GetCache(userID)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	if dr == nil {
-		writeError(w, http.StatusNotFound, "not found")
-		return
-	}
-	writeJSON(w, http.StatusOK, dr)
-}
-
-func (hp *HomePeer) handleHealth(w http.ResponseWriter, r *http.Request) {
-	hp.mu.RLock()
-	numUsers := len(hp.users)
-	hp.mu.RUnlock()
-
-	rt := hp.dht.RoutingTable()
-	writeJSON(w, http.StatusOK, map[string]any{
-		"peer_id":            hp.host.ID().String(),
-		"routing_table_size": rt.Size(),
-		"num_users":          numUsers,
-		"addrs":              hp.host.Addrs(),
-	})
 }
 
 func (hp *HomePeer) publishDR(userID string, dr *model.DirectRelations) {
@@ -383,16 +260,16 @@ func (hp *HomePeer) fetchAndCacheDR(ctx context.Context, userID string) {
 // Hop 1 is read from the user's signed DR; hops 2–6 are composed exclusively from
 // the signed DRDs of hop-1 users fetched at /drd/<user-id>/<context>.
 // There is no fallback to direct DR traversal.
-func (hp *HomePeer) computeAndPublishDeps(ctx context.Context, hu *HomedUser) {
+func (hp *HomePeer) computeAndPublishDeps(ctx context.Context, hu *homedUser) {
 	hp.mu.RLock()
-	dr := hu.DirectRelations
+	dr := hu.directRelations
 	hp.mu.RUnlock()
 
 	if dr == nil {
 		return
 	}
 
-	userIDStr := hu.UserID.String()
+	userIDStr := hu.userID.String()
 	now := time.Now().Unix()
 	allDepUIDs := map[string]bool{}
 
@@ -434,8 +311,7 @@ func (hp *HomePeer) computeAndPublishDeps(ctx context.Context, hu *HomedUser) {
 			visited[uid] = true
 		}
 
-		// Hops 2–6: fetch the DRD for each hop-1 target at
-		// /drd/<user-id>/<dot-joined-target-context> and shift hop indices by 1.
+		// Hops 2–6: fetch the DRD for each hop-1 target and shift hop indices by 1.
 		sources := []string{}
 		seenSources := map[string]bool{}
 
@@ -486,7 +362,7 @@ func (hp *HomePeer) computeAndPublishDeps(ctx context.Context, hu *HomedUser) {
 		ctxKey := model.ContextDotJoin(ctxEntry.Path)
 
 		hp.mu.Lock()
-		hu.Dependencies[ctxKey] = drd
+		hu.dependencies[ctxKey] = drd
 		hp.mu.Unlock()
 
 		if err := hp.store.PutDRD(userIDStr, ctxEntry.Path, drd); err != nil {
@@ -517,7 +393,7 @@ func (hp *HomePeer) runCycle(ctx context.Context) {
 			return
 		case <-ticker.C:
 			hp.mu.RLock()
-			users := make([]*HomedUser, 0, len(hp.users))
+			users := make([]*homedUser, 0, len(hp.users))
 			for _, hu := range hp.users {
 				users = append(users, hu)
 			}
