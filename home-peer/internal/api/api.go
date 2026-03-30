@@ -59,7 +59,7 @@ func (s *Server) handlePublish(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleFeed(w http.ResponseWriter, r *http.Request) {
 	userID := r.PathValue("userid")
 
-	feed, err := s.hp.Feed(userID)
+	feed, err := s.hp.Feed(r.Context(), userID)
 	if err != nil {
 		if errors.Is(err, homepeer.ErrNotHomed) {
 			writeError(w, http.StatusNotFound, "user not homed")
@@ -74,7 +74,7 @@ func (s *Server) handleFeed(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleDeps(w http.ResponseWriter, r *http.Request) {
 	userID := r.PathValue("userid")
 
-	drd, err := s.hp.Deps(userID)
+	drd, err := s.hp.Deps(r.Context(), userID)
 	if err != nil {
 		if errors.Is(err, homepeer.ErrNotHomed) {
 			writeError(w, http.StatusNotFound, "user not homed")
@@ -93,7 +93,7 @@ func (s *Server) handleDeps(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleGetDR(w http.ResponseWriter, r *http.Request) {
 	userID := r.PathValue("userid")
 
-	dr, err := s.hp.CachedDR(userID)
+	dr, err := s.hp.CachedDR(r.Context(), userID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
