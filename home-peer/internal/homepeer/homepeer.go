@@ -277,6 +277,25 @@ func (hp *HomePeer) Health() HealthInfo {
 	}
 }
 
+// fetchContent returns the bytes for a content-addressed item, checking the local store
+// first. On a cache miss it fetches from the DHT using dhtKey, stores the result, and
+// returns it. Returns nil, nil when the item is simply absent from both.
+func (hp *HomePeer) fetchContent(ctx context.Context, dhtKey, addr string) ([]byte, error) {
+	if data, err := hp.store.Get(addr); err != nil {
+		return nil, err
+	} else if data != nil {
+		return data, nil
+	}
+	fetchCtx, cancel := context.WithTimeout(ctx, dhtTimeout)
+	data, err := hp.dht.GetValue(fetchCtx, dhtKey)
+	cancel()
+	if err != nil {
+		return nil, err
+	}
+	_ = hp.store.Put(addr, data)
+	return data, nil
+}
+
 // publishDRToDHT performs the two DHT publishing steps for a DirectRelations document.
 // Step 2: store the raw bytes under their content address (/dr-data/<addr>).
 // Step 3: store the user-id → content-address pointer (/dr/<user-id>).
@@ -326,14 +345,11 @@ func (hp *HomePeer) fetchDRForUser(ctx context.Context, userID string) (*model.D
 		return nil, ""
 	}
 
-	fetchCtx2, cancel2 := context.WithTimeout(ctx, dhtTimeout)
-	drData, err := hp.dht.GetValue(fetchCtx2, "/dr-data/"+ptr.ContentAddress)
-	cancel2()
+	drData, err := hp.fetchContent(ctx, "/dr-data/"+ptr.ContentAddress, ptr.ContentAddress)
 	if err != nil {
 		return nil, ""
 	}
 
-	_ = hp.store.Put(ptr.ContentAddress, drData)
 	hp.mu.Lock()
 	hp.cachedDRAddrs[userID] = ptr.ContentAddress
 	hp.mu.Unlock()
@@ -447,14 +463,7 @@ func (hp *HomePeer) computeDRD(ctx context.Context, dr *model.DirectRelations, d
 		hp.cachedDRAddrs[targetUID] = theirDRAddr
 		hp.mu.Unlock()
 
-		if existing, _ := hp.store.Get(theirDRAddr); existing == nil {
-			fetchCtx2, cancel2 := context.WithTimeout(ctx, dhtTimeout)
-			drData, err := hp.dht.GetValue(fetchCtx2, "/dr-data/"+theirDRAddr)
-			cancel2()
-			if err == nil {
-				_ = hp.store.Put(theirDRAddr, drData)
-			}
-		}
+		_, _ = hp.fetchContent(ctx, "/dr-data/"+theirDRAddr, theirDRAddr)
 
 		// Fetch their DRDPointer to find their current DRD content address.
 		fetchCtx3, cancel3 := context.WithTimeout(ctx, dhtTimeout)
@@ -469,15 +478,9 @@ func (hp *HomePeer) computeDRD(ctx context.Context, dr *model.DirectRelations, d
 		}
 		drdAddr := drdPtr.DRDContentAddress
 
-		drdData, _ := hp.store.Get(drdAddr)
-		if drdData == nil {
-			fetchCtx4, cancel4 := context.WithTimeout(ctx, dhtTimeout)
-			drdData, err = hp.dht.GetValue(fetchCtx4, "/drd-data/"+drdAddr)
-			cancel4()
-			if err != nil {
-				continue
-			}
-			_ = hp.store.Put(drdAddr, drdData)
+		drdData, err := hp.fetchContent(ctx, "/drd-data/"+drdAddr, drdAddr)
+		if err != nil {
+			continue
 		}
 
 		var remoteDRD model.DirectRelationsDependencies
