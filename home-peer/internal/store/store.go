@@ -11,7 +11,7 @@ import (
 	"github.com/net-perspective/home-peer/internal/model"
 )
 
-// Store is a filesystem-backed store for DR, DRD, and cached DR documents.
+// Store is a filesystem-backed store for DR, DRD, and cached DR envelopes.
 //
 // Directory layout:
 //
@@ -32,50 +32,35 @@ func Open(root string) (*Store, error) {
 	return &Store{root: root}, nil
 }
 
-// Close is a no-op; present to satisfy the same interface as before.
+// Close is a no-op.
 func (s *Store) Close() error { return nil }
 
-// PutDR atomically writes a DirectRelations document.
-func (s *Store) PutDR(userID string, dr *model.DirectRelations) error {
-	return writeJSON(filepath.Join(s.root, "dr", userID+".json"), dr)
+// PutDR atomically writes a signed DR envelope.
+func (s *Store) PutDR(userID string, env model.Envelope) error {
+	return writeJSON(filepath.Join(s.root, "dr", userID+".json"), env)
 }
 
-// GetDR reads a DirectRelations document. Returns nil, nil if not found.
-func (s *Store) GetDR(userID string) (*model.DirectRelations, error) {
-	var dr model.DirectRelations
-	if err := readJSON(filepath.Join(s.root, "dr", userID+".json"), &dr); err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	return &dr, nil
+// GetDR reads a signed DR envelope. Returns nil, nil if not found.
+func (s *Store) GetDR(userID string) (*model.Envelope, error) {
+	return readEnvelope(filepath.Join(s.root, "dr", userID+".json"))
 }
 
-// PutDRD atomically writes a per-context DirectRelationsDependencies document.
-func (s *Store) PutDRD(userID string, contextPath []string, drd *model.DirectRelationsDependencies) error {
+// PutDRD atomically writes a signed DRD envelope for a specific context.
+func (s *Store) PutDRD(userID string, contextPath []string, env model.Envelope) error {
 	dir := filepath.Join(s.root, "drd", userID)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("creating drd dir: %w", err)
 	}
-	return writeJSON(filepath.Join(dir, model.ContextDotJoin(contextPath)+".json"), drd)
+	return writeJSON(filepath.Join(dir, model.ContextDotJoin(contextPath)+".json"), env)
 }
 
-// GetDRD reads a per-context DirectRelationsDependencies document. Returns nil, nil if not found.
-func (s *Store) GetDRD(userID string, contextPath []string) (*model.DirectRelationsDependencies, error) {
-	var drd model.DirectRelationsDependencies
-	path := filepath.Join(s.root, "drd", userID, model.ContextDotJoin(contextPath)+".json")
-	if err := readJSON(path, &drd); err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	return &drd, nil
+// GetDRD reads a signed DRD envelope for a specific context. Returns nil, nil if not found.
+func (s *Store) GetDRD(userID string, contextPath []string) (*model.Envelope, error) {
+	return readEnvelope(filepath.Join(s.root, "drd", userID, model.ContextDotJoin(contextPath)+".json"))
 }
 
-// GetAllDRDs returns all stored DRDs for a given user (one per context).
-func (s *Store) GetAllDRDs(userID string) ([]*model.DirectRelationsDependencies, error) {
+// GetAllDRDs returns all stored DRD envelopes for a given user (one per context).
+func (s *Store) GetAllDRDs(userID string) ([]model.Envelope, error) {
 	dir := filepath.Join(s.root, "drd", userID)
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -84,35 +69,28 @@ func (s *Store) GetAllDRDs(userID string) ([]*model.DirectRelationsDependencies,
 		}
 		return nil, err
 	}
-	var results []*model.DirectRelationsDependencies
+	var results []model.Envelope
 	for _, e := range entries {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
 			continue
 		}
-		var drd model.DirectRelationsDependencies
-		if err := readJSON(filepath.Join(dir, e.Name()), &drd); err != nil {
+		env, err := readEnvelope(filepath.Join(dir, e.Name()))
+		if err != nil {
 			return nil, err
 		}
-		results = append(results, &drd)
+		results = append(results, *env)
 	}
 	return results, nil
 }
 
-// PutCache atomically writes a cached DirectRelations document.
-func (s *Store) PutCache(userID string, dr *model.DirectRelations) error {
-	return writeJSON(filepath.Join(s.root, "cache", userID+".json"), dr)
+// PutCache atomically writes a cached DR envelope.
+func (s *Store) PutCache(userID string, env model.Envelope) error {
+	return writeJSON(filepath.Join(s.root, "cache", userID+".json"), env)
 }
 
-// GetCache reads a cached DirectRelations document. Returns nil, nil if not found.
-func (s *Store) GetCache(userID string) (*model.DirectRelations, error) {
-	var dr model.DirectRelations
-	if err := readJSON(filepath.Join(s.root, "cache", userID+".json"), &dr); err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	return &dr, nil
+// GetCache reads a cached DR envelope. Returns nil, nil if not found.
+func (s *Store) GetCache(userID string) (*model.Envelope, error) {
+	return readEnvelope(filepath.Join(s.root, "cache", userID+".json"))
 }
 
 // GetUsers returns the peer IDs of all homed users by scanning the dr/ directory.
@@ -134,10 +112,24 @@ func (s *Store) GetUsers() ([]string, error) {
 	return users, nil
 }
 
-// AddUser is a no-op: users are discovered via GetUsers by scanning dr/.
+// AddUser is a no-op: the user list is derived from the dr/ directory.
 func (s *Store) AddUser(_ string) error { return nil }
 
-// writeJSON marshals v to JSON and atomically writes it to path via a temp file.
+func readEnvelope(path string) (*model.Envelope, error) {
+	var env model.Envelope
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if err := json.Unmarshal(data, &env); err != nil {
+		return nil, err
+	}
+	return &env, nil
+}
+
 func writeJSON(path string, v any) error {
 	data, err := json.Marshal(v)
 	if err != nil {
@@ -148,13 +140,4 @@ func writeJSON(path string, v any) error {
 		return err
 	}
 	return os.Rename(tmp, path)
-}
-
-// readJSON reads and unmarshals a JSON file into v.
-func readJSON(path string, v any) error {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return err
-	}
-	return json.Unmarshal(data, v)
 }
