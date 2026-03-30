@@ -2,105 +2,73 @@ package store
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
-	badger "github.com/dgraph-io/badger/v4"
 	"github.com/net-perspective/home-peer/internal/model"
 )
 
-const (
-	prefixDR    = "dr:"
-	prefixDRD   = "drd:"
-	prefixCache = "cache:"
-	keyUsers    = "meta:users"
-)
-
-// drdKey returns the local storage key for a per-context DRD.
-// Format: drd:<peer-id>:<dot-joined-context>
-func drdKey(userID string, contextPath []string) string {
-	return prefixDRD + userID + ":" + model.ContextDotJoin(contextPath)
-}
-
-// Store wraps a Badger database with typed helpers.
+// Store is a filesystem-backed store for DR, DRD, and cached DR documents.
+//
+// Directory layout:
+//
+//	<root>/dr/<peer-id>.json
+//	<root>/drd/<peer-id>/<dot-joined-context>.json
+//	<root>/cache/<peer-id>.json
 type Store struct {
-	db *badger.DB
+	root string
 }
 
-// Open opens (or creates) a Badger database at the given path.
-func Open(path string) (*Store, error) {
-	opts := badger.DefaultOptions(path).WithLogger(nil)
-	db, err := badger.Open(opts)
-	if err != nil {
-		return nil, fmt.Errorf("opening badger at %s: %w", path, err)
+// Open opens (or creates) a Store rooted at the given directory.
+func Open(root string) (*Store, error) {
+	for _, sub := range []string{"dr", "drd", "cache"} {
+		if err := os.MkdirAll(filepath.Join(root, sub), 0o755); err != nil {
+			return nil, fmt.Errorf("creating store dir %s: %w", sub, err)
+		}
 	}
-	return &Store{db: db}, nil
+	return &Store{root: root}, nil
 }
 
-// Close closes the underlying database.
-func (s *Store) Close() error {
-	return s.db.Close()
-}
+// Close is a no-op; present to satisfy the same interface as before.
+func (s *Store) Close() error { return nil }
 
-// PutDR stores a DirectRelations document keyed by peer ID.
+// PutDR atomically writes a DirectRelations document.
 func (s *Store) PutDR(userID string, dr *model.DirectRelations) error {
-	data, err := json.Marshal(dr)
-	if err != nil {
-		return err
-	}
-	return s.db.Update(func(txn *badger.Txn) error {
-		return txn.Set([]byte(prefixDR+userID), data)
-	})
+	return writeJSON(filepath.Join(s.root, "dr", userID+".json"), dr)
 }
 
-// GetDR retrieves a DirectRelations document by peer ID.
+// GetDR reads a DirectRelations document. Returns nil, nil if not found.
 func (s *Store) GetDR(userID string) (*model.DirectRelations, error) {
 	var dr model.DirectRelations
-	err := s.db.View(func(txn *badger.Txn) error {
-		item, err := txn.Get([]byte(prefixDR + userID))
-		if err != nil {
-			return err
+	if err := readJSON(filepath.Join(s.root, "dr", userID+".json"), &dr); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil
 		}
-		return item.Value(func(val []byte) error {
-			return json.Unmarshal(val, &dr)
-		})
-	})
-	if err == badger.ErrKeyNotFound {
-		return nil, nil
-	}
-	if err != nil {
 		return nil, err
 	}
 	return &dr, nil
 }
 
-// PutDRD stores a per-context DirectRelationsDependencies document.
+// PutDRD atomically writes a per-context DirectRelationsDependencies document.
 func (s *Store) PutDRD(userID string, contextPath []string, drd *model.DirectRelationsDependencies) error {
-	data, err := json.Marshal(drd)
-	if err != nil {
-		return err
+	dir := filepath.Join(s.root, "drd", userID)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("creating drd dir: %w", err)
 	}
-	return s.db.Update(func(txn *badger.Txn) error {
-		return txn.Set([]byte(drdKey(userID, contextPath)), data)
-	})
+	return writeJSON(filepath.Join(dir, model.ContextDotJoin(contextPath)+".json"), drd)
 }
 
-// GetDRD retrieves a per-context DirectRelationsDependencies document.
+// GetDRD reads a per-context DirectRelationsDependencies document. Returns nil, nil if not found.
 func (s *Store) GetDRD(userID string, contextPath []string) (*model.DirectRelationsDependencies, error) {
 	var drd model.DirectRelationsDependencies
-	err := s.db.View(func(txn *badger.Txn) error {
-		item, err := txn.Get([]byte(drdKey(userID, contextPath)))
-		if err != nil {
-			return err
+	path := filepath.Join(s.root, "drd", userID, model.ContextDotJoin(contextPath)+".json")
+	if err := readJSON(path, &drd); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil
 		}
-		return item.Value(func(val []byte) error {
-			return json.Unmarshal(val, &drd)
-		})
-	})
-	if err == badger.ErrKeyNotFound {
-		return nil, nil
-	}
-	if err != nil {
 		return nil, err
 	}
 	return &drd, nil
@@ -108,105 +76,85 @@ func (s *Store) GetDRD(userID string, contextPath []string) (*model.DirectRelati
 
 // GetAllDRDs returns all stored DRDs for a given user (one per context).
 func (s *Store) GetAllDRDs(userID string) ([]*model.DirectRelationsDependencies, error) {
-	prefix := []byte(prefixDRD + userID + ":")
-	var results []*model.DirectRelationsDependencies
-
-	err := s.db.View(func(txn *badger.Txn) error {
-		opts := badger.DefaultIteratorOptions
-		opts.Prefix = prefix
-		it := txn.NewIterator(opts)
-		defer it.Close()
-		for it.Rewind(); it.Valid(); it.Next() {
-			var drd model.DirectRelationsDependencies
-			if err := it.Item().Value(func(val []byte) error {
-				return json.Unmarshal(val, &drd)
-			}); err != nil {
-				return err
-			}
-			results = append(results, &drd)
-		}
-		return nil
-	})
-	return results, err
-}
-
-// PutCache stores a cached DirectRelations document for use in dep computations.
-func (s *Store) PutCache(userID string, dr *model.DirectRelations) error {
-	data, err := json.Marshal(dr)
+	dir := filepath.Join(s.root, "drd", userID)
+	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return err
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, err
 	}
-	return s.db.Update(func(txn *badger.Txn) error {
-		return txn.Set([]byte(prefixCache+userID), data)
-	})
+	var results []*model.DirectRelationsDependencies
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
+			continue
+		}
+		var drd model.DirectRelationsDependencies
+		if err := readJSON(filepath.Join(dir, e.Name()), &drd); err != nil {
+			return nil, err
+		}
+		results = append(results, &drd)
+	}
+	return results, nil
 }
 
-// GetCache retrieves a cached DirectRelations document by peer ID.
+// PutCache atomically writes a cached DirectRelations document.
+func (s *Store) PutCache(userID string, dr *model.DirectRelations) error {
+	return writeJSON(filepath.Join(s.root, "cache", userID+".json"), dr)
+}
+
+// GetCache reads a cached DirectRelations document. Returns nil, nil if not found.
 func (s *Store) GetCache(userID string) (*model.DirectRelations, error) {
 	var dr model.DirectRelations
-	err := s.db.View(func(txn *badger.Txn) error {
-		item, err := txn.Get([]byte(prefixCache + userID))
-		if err != nil {
-			return err
+	if err := readJSON(filepath.Join(s.root, "cache", userID+".json"), &dr); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil
 		}
-		return item.Value(func(val []byte) error {
-			return json.Unmarshal(val, &dr)
-		})
-	})
-	if err == badger.ErrKeyNotFound {
-		return nil, nil
-	}
-	if err != nil {
 		return nil, err
 	}
 	return &dr, nil
 }
 
-// AddUser adds a user peer ID to the meta:users list (idempotent).
-func (s *Store) AddUser(userID string) error {
-	return s.db.Update(func(txn *badger.Txn) error {
-		existing, err := getUsersInTxn(txn)
-		if err != nil {
-			return err
-		}
-		for _, u := range existing {
-			if u == userID {
-				return nil
-			}
-		}
-		existing = append(existing, userID)
-		return txn.Set([]byte(keyUsers), []byte(strings.Join(existing, "\n")))
-	})
-}
-
-// GetUsers returns all homed user peer IDs.
+// GetUsers returns the peer IDs of all homed users by scanning the dr/ directory.
 func (s *Store) GetUsers() ([]string, error) {
+	entries, err := os.ReadDir(filepath.Join(s.root, "dr"))
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, err
+	}
 	var users []string
-	err := s.db.View(func(txn *badger.Txn) error {
-		var err error
-		users, err = getUsersInTxn(txn)
-		return err
-	})
-	return users, err
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
+			continue
+		}
+		users = append(users, strings.TrimSuffix(e.Name(), ".json"))
+	}
+	return users, nil
 }
 
-func getUsersInTxn(txn *badger.Txn) ([]string, error) {
-	item, err := txn.Get([]byte(keyUsers))
-	if err == badger.ErrKeyNotFound {
-		return nil, nil
-	}
+// AddUser is a no-op: users are discovered via GetUsers by scanning dr/.
+func (s *Store) AddUser(_ string) error { return nil }
+
+// writeJSON marshals v to JSON and atomically writes it to path via a temp file.
+func writeJSON(path string, v any) error {
+	data, err := json.Marshal(v)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	var raw string
-	if err := item.Value(func(val []byte) error {
-		raw = string(val)
-		return nil
-	}); err != nil {
-		return nil, err
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+		return err
 	}
-	if raw == "" {
-		return nil, nil
+	return os.Rename(tmp, path)
+}
+
+// readJSON reads and unmarshals a JSON file into v.
+func readJSON(path string, v any) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
 	}
-	return strings.Split(raw, "\n"), nil
+	return json.Unmarshal(data, v)
 }
