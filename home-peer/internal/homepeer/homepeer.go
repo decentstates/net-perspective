@@ -22,9 +22,9 @@ import (
 )
 
 const (
-	maxHops       = 6
-	cycleInterval = 10 * time.Minute
-	dhtTimeout    = 15 * time.Second
+	maxHops       = 4
+	cycleInterval = 5 * time.Minute
+	dhtTimeout    = 10 * time.Second
 )
 
 // ErrNotHomed is returned when an operation targets a user not configured on this home peer.
@@ -141,6 +141,7 @@ func (hp *HomePeer) Health() HealthInfo {
 	for i, a := range hp.host.Addrs() {
 		addrs[i] = a.String()
 	}
+	// TODO: Add the store size in here
 	return HealthInfo{
 		PeerID:           hp.host.ID().String(),
 		RoutingTableSize: rt.Size(),
@@ -157,8 +158,9 @@ func (hp *HomePeer) dhtGet(ctx context.Context, key string) ([]byte, error) {
 }
 
 // dhtPut publishes a value to the DHT with a standard timeout, logging on failure.
+// TODO: Handle errors
 func (hp *HomePeer) dhtPut(ctx context.Context, key string, data []byte) {
-	putCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	putCtx, cancel := context.WithTimeout(ctx, dhtTimeout)
 	defer cancel()
 	if err := hp.dht.PutValue(putCtx, key, data); err != nil {
 		log.Printf("DHT put %s: %v", key, err)
@@ -178,6 +180,7 @@ func (hp *HomePeer) fetchContent(ctx context.Context, dhtKey, addr string) ([]by
 	if err != nil {
 		return nil, err
 	}
+	// TODO: Need to handle failures.
 	_ = hp.store.Put(addr, data)
 	return data, nil
 }
@@ -237,6 +240,8 @@ func (hp *HomePeer) publishDRToDHT(userID, addr string, data []byte, timestamp i
 // gzip-compressed JSON array, stores it in the content store, and returns the bytes and
 // content address.
 func (hp *HomePeer) buildDependencyBundle(ctx context.Context, depUserIDs []string) ([]byte, string, error) {
+	// TODO: Should be built from other's Bundles, also should be moved in a domain logic.
+	//       In general we need to separate the network side of things from the rest of the code.
 	var drs []model.DirectRelations
 	for _, uid := range depUserIDs {
 		if dr, _ := hp.fetchDRForUser(ctx, uid); dr != nil {
@@ -279,6 +284,8 @@ func decompressBundle(data []byte) ([]model.DirectRelations, error) {
 	}
 	return drs, nil
 }
+
+// TODO: Move this to domain logic file, where we have also function DR + []DRD -> DRD to compute a user's DRD from their DR other's DRDs
 
 // extractHop1Users collects the unique set of hop-1 target users from a DR document.
 func extractHop1Users(dr *model.DirectRelations) []string {

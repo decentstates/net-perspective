@@ -41,18 +41,12 @@ func ValidateContextPath(path []string) error {
 	return nil
 }
 
-// ContextDotJoin joins a context path with dots. Unambiguous because element
-// characters exclude dots. Used for display and UI purposes.
-func ContextDotJoin(path []string) string {
-	return strings.Join(path, ".")
-}
-
 // Relation represents a single relation (link or leaf).
 type Relation struct {
 	Type          string         `json:"type"`
-	TargetUser    string         `json:"target_user,omitempty"`
-	TargetContext []string       `json:"target_context,omitempty"`
-	URL           string         `json:"url,omitempty"`
+	UserLinkUserID    string         `json:"target_user,omitempty"`
+	UserLinkTargetContext []string       `json:"target_context,omitempty"`
+	URLLinkURL           string         `json:"url,omitempty"`
 	Properties    map[string]any `json:"properties"`
 }
 
@@ -64,7 +58,6 @@ type ContextEntry struct {
 
 // DirectRelations is the primary document published per user.
 // DHT pointer:  /dr/<user-id>           → DRPointer
-// DHT content:  /dr-data/<content-addr> → raw bytes
 type DirectRelations struct {
 	Version   int            `json:"version"`
 	UserID    string         `json:"user_id"`
@@ -73,39 +66,40 @@ type DirectRelations struct {
 	Signature string         `json:"signature"`
 }
 
-// HopDependencies maps hop number ("1"–"6") to the list of user peer IDs at that depth.
-type HopDependencies map[string][]string
-
 // DRPointer is the DHT record at /dr/<user-id>.
 // It maps a user identity to their current DirectRelations content address.
 type DRPointer struct {
-	UserID         string `json:"user_id"`
-	ContentAddress string `json:"content_address"`
+	DRContentAddress string `json:"dr_content_address"`
 	Timestamp      int64  `json:"timestamp"`
 }
 
-// DRDPointer is the DHT record at /drd/<dr-content-address>.
-// It maps a DirectRelations content address to its computed DRD content address.
-type DRDPointer struct {
-	DRContentAddress  string `json:"dr_content_address"`
-	DRDContentAddress string `json:"drd_content_address"`
-	Timestamp         int64  `json:"timestamp"`
-	PeerID            string `json:"peer_id"`
+type ContextDependencies struct {
+	Context                    []string   `json:"context"`
+	DependeniesByHop           map[int][]string `json:"dependencies_by_hop"`
+	DependenciesContentAddress string `json:"dependencies_content_address"`
+	BytesByHop				   map[int]int  `json:"bytes_by_hop"`
 }
 
 // DirectRelationsDependencies is produced by a home peer for a specific DR version.
 // It covers all contexts in that DR.
 // DHT pointer:  /drd/<dr-content-addr>    → DRDPointer
-// DHT content:  /drd-data/<content-addr>  → raw bytes
 type DirectRelationsDependencies struct {
 	Version                    int             `json:"version"`
 	UserID                     string          `json:"user_id"`
 	DRContentAddress           string          `json:"dr_content_address"`
+	Contexts				   ContextDependencies `json:context_dependencies`
 	Hops                       HopDependencies `json:"hops"`
 	Sources                    []string        `json:"sources"`                      // content addresses of remote DRDs consumed
 	DependenciesContentAddress string          `json:"dependencies_content_address"` // content address of gzip dependency bundle
-	SourceTimestamp            int64           `json:"source_timestamp"`
-	ComputedAt                 int64           `json:"computed_at"`
+	ComputationTimestamp       int64           `json:"computed_at"` // Timestamp set at the start of the process, all sources should the newest that is less than this timestamp.
 	PeerID                     string          `json:"peer_id"`
 	Signature                  string          `json:"signature"`
 }
+
+// DRDPointer is the DHT record at /drd/<dr-content-address>.
+// It maps a DirectRelations content address to its computed DRD content address.
+type DRDPointer struct {
+	DRDContentAddress string `json:"drd_content_address"`
+	Timestamp         int64  `json:"timestamp"`
+}
+

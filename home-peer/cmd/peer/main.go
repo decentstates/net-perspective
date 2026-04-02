@@ -97,6 +97,9 @@ func main() {
 		log.Printf("Listening on: %s/p2p/%s", a, h.ID())
 	}
 
+
+	// TODO: I think we need to set up some kind of non-http communication for sharing files if the host is behind a NAT
+
 	// --- Home peer HTTP API (optional) ---
 	if *httpAddr != "" {
 		userIDs := parseUserIDs(*usersFlag)
@@ -124,6 +127,8 @@ func main() {
 		}()
 		defer srv.Shutdown(context.Background())
 	}
+
+	// Will need to implement kad dhts's advertise and routing discovery
 
 	// --- Block until signal ---
 	ch := make(chan os.Signal, 1)
